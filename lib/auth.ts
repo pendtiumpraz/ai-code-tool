@@ -42,24 +42,26 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
   
   providers: [
-    // Google OAuth with Drive scope
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      authorization: {
-        params: {
-          scope: [
-            'openid',
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/drive.file',  // Access files created by app
-            'https://www.googleapis.com/auth/drive.appdata', // App-specific data
-          ].join(' '),
-          access_type: 'offline',
-          prompt: 'consent',
+    // Google OAuth with Drive scope (only if credentials are set)
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET ? [
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        authorization: {
+          params: {
+            scope: [
+              'openid',
+              'email',
+              'profile',
+              'https://www.googleapis.com/auth/drive.file',
+              'https://www.googleapis.com/auth/drive.appdata',
+            ].join(' '),
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
-      },
-    }),
+      }),
+    ] : []),
     
     // Email/Password
     CredentialsProvider({
