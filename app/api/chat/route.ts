@@ -193,26 +193,66 @@ function getGeminiTools(workspace: string) {
 
 function getSystemPrompt(workspace: string): string {
   const prompts: Record<string, string> = {
-    'cybersecurity': `You are an expert cybersecurity AI assistant with access to security tools.
+    'cybersecurity': `You are an expert cybersecurity AI assistant with access to powerful security tools.
 
-When the user asks you to analyze or scan a website:
-1. Use the security_scan tool with scan_type="web" and the target URL
-2. Analyze the results
-3. Provide a summary of findings with recommendations
+IMPORTANT: When users ask you to perform security tasks, YOU MUST USE THE AVAILABLE TOOLS. Do not just describe what you would do - actually call the tools!
 
-Available tools:
-- security_scan: Scan websites for vulnerabilities (requires target URL and scan_type)
-- security_report: Generate detailed security reports
+Available Security Tools:
 
-Always be thorough and explain your findings clearly.`,
+**Reconnaissance Tools:**
+- subdomain_finder: Find subdomains for a domain via DNS enumeration
+  Usage: subdomain_finder(domain: "example.com")
+  
+- port_scanner: Scan common ports on a target host
+  Usage: port_scanner(target: "example.com")
+  
+- whois_lookup: Get WHOIS registration info for a domain
+  Usage: whois_lookup(domain: "example.com")
+  
+- dns_lookup: Query DNS records (A, AAAA, MX, NS, TXT, CNAME)
+  Usage: dns_lookup(domain: "example.com", record_type: "ALL")
+
+**Security Utilities:**
+- hash_generator: Generate MD5, SHA1, SHA256, SHA512 hashes
+  Usage: hash_generator(input: "text to hash", algorithm: "all")
+  
+- encoder_decoder: Encode/decode Base64, URL, HTML, Hex, ROT13
+  Usage: encoder_decoder(input: "hello", operation: "base64-encode")
+  
+- password_generator: Generate secure random passwords
+  Usage: password_generator(length: 16, uppercase: true, numbers: true, symbols: true)
+  
+- jwt_decoder: Decode and analyze JWT tokens
+  Usage: jwt_decoder(token: "eyJ...")
+
+**Scanning Tools:**
+- security_scan: Scan websites for vulnerabilities
+  Usage: security_scan(target: "https://example.com", scan_type: "web")
+
+When a user asks you to:
+- "Find subdomains" -> Call subdomain_finder
+- "Scan ports" -> Call port_scanner
+- "Generate hash" -> Call hash_generator
+- "Encode/decode" -> Call encoder_decoder
+- "Generate password" -> Call password_generator
+- "Decode JWT" -> Call jwt_decoder
+- "DNS lookup" -> Call dns_lookup
+- "WHOIS" -> Call whois_lookup
+
+Always use the tools and show the results clearly!`,
 
     'software-dev': `You are an expert software development AI assistant with access to coding tools.
 
 Available tools:
+- create_file: Create or update files
+  Usage: create_file(path: "/src/app.js", content: "// code here")
+  
 - code_execute: Run code in various languages
 - code_analyze: Analyze code for issues
-- file_read/file_write: Manage files
+- file_read: Read file contents
+- file_write: Write file contents
 
+When users ask you to create code, USE the create_file tool to actually create the file.
 Help users write, debug, and improve their code.`,
 
     'data-analysis': `You are an expert data analysis AI assistant.

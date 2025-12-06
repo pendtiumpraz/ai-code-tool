@@ -88,6 +88,21 @@ export const TOOLS: Record<string, ToolDefinition> = {
     requiredScopes: ['google_drive'],
   },
   
+  'create_file': {
+    id: 'create_file',
+    name: 'Create File',
+    description: 'Create a new file with the given content. Use this when generating code or creating any files.',
+    category: 'file',
+    parameters: [
+      { name: 'path', type: 'string', description: 'File path (e.g., /src/app.js)', required: true },
+      { name: 'content', type: 'string', description: 'File content to write', required: true },
+    ],
+    handler: 'handleCreateFile',
+    tokenCost: 10,
+    timeout: 30000,
+    requiresAuth: false,
+  },
+  
   'file_delete': {
     id: 'file_delete',
     name: 'Delete File',

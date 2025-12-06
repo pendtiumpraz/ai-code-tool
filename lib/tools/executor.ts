@@ -253,6 +253,8 @@ export class ToolExecutor {
         return this.handleFileRead(args as any);
       case 'handleFileWrite':
         return this.handleFileWrite(args as any);
+      case 'handleCreateFile':
+        return this.handleCreateFile(args as any);
       case 'handleFileDelete':
         return this.handleFileDelete(args as any);
       case 'handleFileList':
@@ -417,6 +419,61 @@ export class ToolExecutor {
     });
     
     return { path: args.path, action: 'created', driveId: driveFile.id };
+  }
+  
+  private async handleCreateFile(args: { path: string; content: string }): Promise<any> {
+    // This creates a file in the local database (not Google Drive)
+    // Used by AI to create files that appear in the workspace
+    const fileName = args.path.split('/').pop() || 'untitled';
+    const normalizedPath = args.path.startsWith('/') ? args.path : `/${args.path}`;
+    
+    // Check if file exists
+    const existing = await prisma.userFile.findUnique({
+      where: {
+        userId_path: {
+          userId: this.context.userId,
+          path: normalizedPath,
+        },
+      },
+    });
+    
+    if (existing) {
+      // Update existing file
+      await prisma.userFile.update({
+        where: { id: existing.id },
+        data: {
+          content: args.content,
+          size: Buffer.byteLength(args.content, 'utf8'),
+          updatedAt: new Date(),
+        },
+      });
+      return { 
+        success: true, 
+        path: normalizedPath, 
+        content: args.content,
+        action: 'updated' 
+      };
+    }
+    
+    // Create new file
+    await prisma.userFile.create({
+      data: {
+        userId: this.context.userId,
+        projectId: this.context.projectId,
+        name: fileName,
+        path: normalizedPath,
+        content: args.content,
+        size: Buffer.byteLength(args.content, 'utf8'),
+        isFolder: false,
+      },
+    });
+    
+    return { 
+      success: true, 
+      path: normalizedPath, 
+      content: args.content,
+      action: 'created' 
+    };
   }
   
   private async handleFileDelete(args: { path: string }): Promise<any> {
