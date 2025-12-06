@@ -55,11 +55,31 @@ function LoginForm() {
     }
 
     try {
+      // Register first if in register mode
+      if (mode === 'register') {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          setFormError(data.error || 'Registration failed');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Then sign in
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
-        name: formData.name,
-        action: mode,
         redirect: false,
       });
 
