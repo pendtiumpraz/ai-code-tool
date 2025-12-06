@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 import {
   Shield, Code, BookOpen, BarChart, Search, FileText,
   Heart, Scale, Plus, Clock, Star, ArrowRight,
-  Sparkles, Zap, Users, FolderOpen
+  Sparkles, Zap, Users, FolderOpen, Settings, LogOut, Crown
 } from 'lucide-react';
 
 const workspaceCategories = [
@@ -78,7 +80,10 @@ const workspaceCategories = [
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [hoveredWorkspace, setHoveredWorkspace] = useState<string | null>(null);
+
+  const isAdmin = session?.user?.role === 'ADMIN' || session?.user?.role === 'SUPER_ADMIN';
 
   const recentProjects = [
     { id: '1', name: 'E-commerce API', workspace: 'software-dev', lastOpened: '2 hours ago' },
@@ -102,10 +107,36 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Admin Link */}
+            {isAdmin && (
+              <Link 
+                href="/admin"
+                className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 rounded-lg text-sm font-medium transition-colors"
+              >
+                <Crown className="w-4 h-4" />
+                Admin
+              </Link>
+            )}
+            
             <button className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg font-medium transition-colors">
               <Plus className="w-4 h-4" />
               New Project
             </button>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-700">
+              <div className="text-right">
+                <p className="text-sm font-medium">{session?.user?.name || 'User'}</p>
+                <p className="text-xs text-gray-500">{session?.user?.role || 'USER'}</p>
+              </div>
+              <button 
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       </header>

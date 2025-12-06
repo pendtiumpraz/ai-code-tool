@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { 
-  ScanTarget, ScanResult, Vulnerability,
-  calculateCVSS, scanModules 
-} from '@/lib/security/scanner';
-import { generateSecurityReport, generateRemediationFile } from '@/lib/security/report-generator';
-import { nanoid } from 'nanoid';
+import { realScan } from '@/lib/security/scanner';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,70 +13,40 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { target, modules, authorization } = body;
+    const { target, authorization } = body;
+
+    // Validate target URL
+    if (!target?.url) {
+      return NextResponse.json(
+        { error: 'Target URL is required' },
+        { status: 400 }
+      );
+    }
 
     // Validate authorization
     if (!authorization || !authorization.confirmed) {
       return NextResponse.json(
-        { error: 'Authorization required before scanning' },
+        { error: 'Authorization required before scanning. You must confirm you own or have permission to scan this website.' },
         { status: 403 }
       );
     }
 
-    // Create scan result
-    const scanResult: ScanResult = {
-      id: `scan-${nanoid(10)}`,
-      target: {
-        url: target.url,
-        scope: target.scope || [target.url],
-        authorization: {
-          type: authorization.type,
-          approvedBy: authorization.approvedBy,
-          validUntil: authorization.validUntil ? new Date(authorization.validUntil) : undefined,
-        },
-      },
-      startTime: new Date(),
-      status: 'running',
-      progress: 0,
-      vulnerabilities: [],
-      summary: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        info: 0,
-        total: 0,
-      },
-      recommendations: [],
-    };
-
-    // Simulate scanning (in production, this would be real scanning)
-    const vulnerabilities = await simulateScan(target.url, modules || ['all']);
+    console.log(`[Scan API] Starting real scan for: ${target.url}`);
     
-    // Update results
-    scanResult.vulnerabilities = vulnerabilities;
-    scanResult.endTime = new Date();
-    scanResult.status = 'completed';
-    scanResult.progress = 100;
+    // Run REAL scan
+    const scanResult = await realScan(target.url);
 
-    // Calculate summary
-    vulnerabilities.forEach(v => {
-      scanResult.summary[v.severity]++;
-      scanResult.summary.total++;
-    });
-
-    // Generate recommendations
-    scanResult.recommendations = generateRecommendations(vulnerabilities);
+    console.log(`[Scan API] Scan completed. Found ${scanResult.summary.total} issues.`);
 
     return NextResponse.json({
       success: true,
       result: scanResult,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Scan API error:', error);
     return NextResponse.json(
-      { error: 'Scan failed' },
+      { error: error.message || 'Scan failed' },
       { status: 500 }
     );
   }
