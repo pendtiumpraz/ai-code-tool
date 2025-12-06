@@ -4,17 +4,39 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, Paperclip, Mic, Settings, Maximize2, Minimize2,
-  StopCircle, Brain, Sparkles, Zap
+  StopCircle, Brain, Sparkles, Zap, X
 } from 'lucide-react';
 import { ChatMessage, ChatMessageProps, ToolCall } from './ChatMessage';
 import { AIStatusIndicator, AIStatusBar, AIStatus } from './AIStatusIndicator';
 import { useChatStore } from '@/stores/chatStore';
 
+type ChatSize = 'normal' | 'expanded' | 'maximized';
+
 export function Chat() {
   const [input, setInput] = useState('');
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [chatSize, setChatSize] = useState<ChatSize>('normal');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Cycle through sizes: normal -> expanded -> maximized -> normal
+  const cycleSize = () => {
+    setChatSize(prev => {
+      if (prev === 'normal') return 'expanded';
+      if (prev === 'expanded') return 'maximized';
+      return 'normal';
+    });
+  };
+  
+  // ESC to exit maximized
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && chatSize === 'maximized') {
+        setChatSize('normal');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [chatSize]);
   
   const {
     messages,
@@ -52,11 +74,15 @@ export function Chat() {
     }
   };
   
+  // Container classes based on size
+  const containerClasses = chatSize === 'maximized'
+    ? 'fixed inset-0 z-50 flex flex-col bg-gray-900'
+    : `flex flex-col bg-gray-900 border-l border-gray-800 transition-all duration-300 ${
+        chatSize === 'expanded' ? 'w-[600px]' : 'w-[400px]'
+      }`;
+
   return (
-    <div className={`
-      flex flex-col bg-gray-900 border-l border-gray-800 transition-all duration-300
-      ${isExpanded ? 'w-[600px]' : 'w-[400px]'}
-    `}>
+    <div className={containerClasses}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
         <div className="flex items-center gap-3">
@@ -70,6 +96,9 @@ export function Chat() {
                 aiStatus === 'idle' ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'
               }`} />
               {aiStatus === 'idle' ? 'Ready' : 'Working...'}
+              {chatSize === 'maximized' && (
+                <span className="ml-2 text-gray-600">(ESC to exit)</span>
+              )}
             </div>
           </div>
         </div>
@@ -79,15 +108,25 @@ export function Chat() {
             <Settings className="w-4 h-4 text-gray-400" />
           </button>
           <button 
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={cycleSize}
             className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            title={chatSize === 'maximized' ? 'Minimize' : chatSize === 'expanded' ? 'Maximize' : 'Expand'}
           >
-            {isExpanded ? (
+            {chatSize === 'maximized' ? (
               <Minimize2 className="w-4 h-4 text-gray-400" />
             ) : (
               <Maximize2 className="w-4 h-4 text-gray-400" />
             )}
           </button>
+          {chatSize === 'maximized' && (
+            <button 
+              onClick={() => setChatSize('normal')}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              title="Close fullscreen"
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          )}
         </div>
       </div>
       
@@ -111,7 +150,9 @@ export function Chat() {
       </AnimatePresence>
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+        chatSize === 'maximized' ? 'max-w-4xl mx-auto w-full' : ''
+      }`}>
         {messages.length === 0 ? (
           <EmptyState />
         ) : (
@@ -136,7 +177,9 @@ export function Chat() {
       </div>
       
       {/* Input */}
-      <div className="p-4 border-t border-gray-800">
+      <div className={`p-4 border-t border-gray-800 ${
+        chatSize === 'maximized' ? 'max-w-4xl mx-auto w-full' : ''
+      }`}>
         <form onSubmit={handleSubmit}>
           <div className="relative">
             <textarea
