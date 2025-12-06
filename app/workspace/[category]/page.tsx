@@ -708,13 +708,13 @@ export default function WorkspacePage() {
 
         {/* Chat Panel with History Sidebar */}
         {chatOpen && (
-          <div className="flex h-full">
+          <div className="flex h-full flex-shrink-0">
             <ChatSessionSidebar
               isOpen={chatHistoryOpen}
               onToggle={() => setChatHistoryOpen(!chatHistoryOpen)}
               workspace={category}
             />
-            <div className="relative flex-1">
+            <div className="relative h-full">
               {/* History toggle button */}
               {!chatHistoryOpen && (
                 <button

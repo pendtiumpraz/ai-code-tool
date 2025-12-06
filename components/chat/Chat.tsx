@@ -77,7 +77,7 @@ export function Chat() {
   // Container classes based on size
   const containerClasses = chatSize === 'maximized'
     ? 'fixed inset-0 z-50 flex flex-col bg-gray-900'
-    : `flex flex-col bg-gray-900 border-l border-gray-800 transition-all duration-300 ${
+    : `flex flex-col h-full bg-gray-900 border-l border-gray-800 transition-all duration-300 flex-shrink-0 ${
         chatSize === 'expanded' ? 'w-[600px]' : 'w-[400px]'
       }`;
 
