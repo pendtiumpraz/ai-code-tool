@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { 
   Search, Filter, MoreHorizontal, Mail, Shield,
-  Ban, Trash2, Edit2, Eye, Download, UserPlus
+  Ban, Trash2, Edit2, Eye, Download, UserPlus,
+  Clock, AlertCircle, CheckCircle
 } from 'lucide-react';
 
 interface User {
@@ -16,6 +17,8 @@ interface User {
   createdAt: string;
   lastLogin?: string;
   tokensUsed: number;
+  subscriptionEndDate?: string;
+  trialEndDate?: string;
 }
 
 export default function AdminUsersPage() {
@@ -40,18 +43,19 @@ export default function AdminUsersPage() {
       } else {
         // Demo data
         setUsers([
-          { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER', plan: 'pro', status: 'active', createdAt: '2024-01-15', tokensUsed: 45000 },
-          { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'USER', plan: 'business', status: 'active', createdAt: '2024-01-10', tokensUsed: 120000 },
-          { id: '3', name: 'Bob Wilson', email: 'bob@company.com', role: 'ADMIN', plan: 'enterprise', status: 'active', createdAt: '2023-12-20', tokensUsed: 500000 },
-          { id: '4', name: 'Alice Brown', email: 'alice@startup.io', role: 'USER', plan: 'starter', status: 'trial', createdAt: '2024-02-01', tokensUsed: 5000 },
+          { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER', plan: 'pro', status: 'active', createdAt: '2024-01-15', tokensUsed: 45000, subscriptionEndDate: '2025-01-15' },
+          { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'USER', plan: 'business', status: 'active', createdAt: '2024-01-10', tokensUsed: 120000, subscriptionEndDate: '2025-03-10' },
+          { id: '3', name: 'Bob Wilson', email: 'bob@company.com', role: 'ADMIN', plan: 'enterprise', status: 'active', createdAt: '2023-12-20', tokensUsed: 500000, subscriptionEndDate: '2025-12-20' },
+          { id: '4', name: 'Alice Brown', email: 'alice@startup.io', role: 'USER', plan: 'starter', status: 'trial', createdAt: '2024-02-01', tokensUsed: 5000, trialEndDate: '2024-12-15' },
           { id: '5', name: null, email: 'guest@test.com', role: 'USER', plan: 'free', status: 'active', createdAt: '2024-02-05', tokensUsed: 1000 },
+          { id: '6', name: 'Mike Johnson', email: 'mike@dev.com', role: 'USER', plan: 'pro', status: 'expired', createdAt: '2023-06-15', tokensUsed: 85000, subscriptionEndDate: '2024-06-15' },
         ]);
       }
     } catch {
       // Demo data fallback
       setUsers([
-        { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER', plan: 'pro', status: 'active', createdAt: '2024-01-15', tokensUsed: 45000 },
-        { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'USER', plan: 'business', status: 'active', createdAt: '2024-01-10', tokensUsed: 120000 },
+        { id: '1', name: 'John Doe', email: 'john@example.com', role: 'USER', plan: 'pro', status: 'active', createdAt: '2024-01-15', tokensUsed: 45000, subscriptionEndDate: '2025-01-15' },
+        { id: '2', name: 'Jane Smith', email: 'jane@example.com', role: 'USER', plan: 'business', status: 'active', createdAt: '2024-01-10', tokensUsed: 120000, subscriptionEndDate: '2025-03-10' },
       ]);
     } finally {
       setLoading(false);
@@ -110,8 +114,46 @@ export default function AdminUsersPage() {
       case 'active': return 'bg-green-500/20 text-green-400';
       case 'trial': return 'bg-blue-500/20 text-blue-400';
       case 'suspended': return 'bg-red-500/20 text-red-400';
+      case 'expired': return 'bg-red-500/20 text-red-400';
       default: return 'bg-gray-500/20 text-gray-400';
     }
+  };
+
+  const getSubscriptionDays = (user: User): { days: number; type: 'subscription' | 'trial' | 'none' | 'expired' } => {
+    const now = new Date();
+    
+    if (user.trialEndDate) {
+      const trialEnd = new Date(user.trialEndDate);
+      const days = Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return { days: Math.max(0, days), type: days > 0 ? 'trial' : 'expired' };
+    }
+    
+    if (user.subscriptionEndDate) {
+      const subEnd = new Date(user.subscriptionEndDate);
+      const days = Math.ceil((subEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return { days: Math.max(0, days), type: days > 0 ? 'subscription' : 'expired' };
+    }
+    
+    if (user.plan === 'free') {
+      return { days: -1, type: 'none' };
+    }
+    
+    return { days: 0, type: 'none' };
+  };
+
+  const getSubscriptionColor = (days: number, type: string): string => {
+    if (type === 'none') return 'text-gray-500';
+    if (type === 'expired' || days <= 0) return 'text-red-400';
+    if (days <= 7) return 'text-red-400';
+    if (days <= 14) return 'text-yellow-400';
+    return 'text-green-400';
+  };
+
+  const getProgressBarColor = (days: number, type: string): string => {
+    if (type === 'none' || type === 'expired' || days <= 0) return 'bg-gray-600';
+    if (days <= 7) return 'bg-red-500';
+    if (days <= 14) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
 
   return (
@@ -203,6 +245,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">User</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Role</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Plan</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Subscription</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Status</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Tokens Used</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Joined</th>
@@ -212,13 +255,13 @@ export default function AdminUsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                     Loading...
                   </td>
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                     No users found
                   </td>
                 </tr>
@@ -253,6 +296,52 @@ export default function AdminUsersPage() {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPlanBadgeColor(user.plan)}`}>
                         {user.plan}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const { days, type } = getSubscriptionDays(user);
+                        const color = getSubscriptionColor(days, type);
+                        const barColor = getProgressBarColor(days, type);
+                        
+                        if (type === 'none') {
+                          return (
+                            <span className="text-gray-500 text-sm">No subscription</span>
+                          );
+                        }
+                        
+                        if (type === 'expired' || days <= 0) {
+                          return (
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="w-4 h-4 text-red-400" />
+                              <span className="text-red-400 text-sm font-medium">Expired</span>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="min-w-[120px]">
+                            <div className="flex items-center gap-2 mb-1">
+                              {type === 'trial' ? (
+                                <Clock className="w-4 h-4 text-blue-400" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4 text-green-400" />
+                              )}
+                              <span className={`text-sm font-medium ${color}`}>
+                                {days} days left
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full ${barColor} rounded-full transition-all`}
+                                style={{ width: `${Math.min(100, (days / 30) * 100)}%` }}
+                              />
+                            </div>
+                            {type === 'trial' && (
+                              <span className="text-xs text-blue-400 mt-0.5">Trial</span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(user.status)}`}>

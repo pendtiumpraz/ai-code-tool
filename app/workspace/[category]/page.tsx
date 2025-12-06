@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import dynamic from 'next/dynamic';
@@ -8,7 +8,7 @@ import {
   PanelLeftClose, PanelLeft, MessageSquare, Code,
   Terminal as TerminalIcon, Eye, Files, Settings,
   Play, Save, Download, Upload, Plus, Search,
-  ChevronDown, MoreHorizontal, Sparkles
+  ChevronDown, MoreHorizontal, Sparkles, X, RefreshCw
 } from 'lucide-react';
 
 // Dynamic imports for heavy components
@@ -20,24 +20,47 @@ import { PreEngagementForm } from '@/components/security/PreEngagementForm';
 import { CVSSCalculator } from '@/components/security/CVSSCalculator';
 import { SocialEngineeringSimulator } from '@/components/security/SocialEngineeringSimulator';
 
+// Workspace sidebar
+import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar';
+
 import { workspaces } from '@/config/workspaces';
 import { useChatStore } from '@/stores/chatStore';
+import { useFileStore } from '@/stores/fileStore';
 
 export default function WorkspacePage() {
   const params = useParams();
   const category = params.category as string;
   
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [navSidebarOpen, setNavSidebarOpen] = useState(true);
+  const [fileSidebarOpen, setFileSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Legacy - for file explorer toggle
   const [chatOpen, setChatOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'editor' | 'terminal' | 'preview' | 'security'>('editor');
-  const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [files, setFiles] = useState<any[]>([]);
+  const [activeSidebarItem, setActiveSidebarItem] = useState('dashboard');
   const [showEngagementForm, setShowEngagementForm] = useState(false);
   const [securityTool, setSecurityTool] = useState<'scanner' | 'cvss' | 'social-eng' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>(['$ Ready for commands...']);
+  const [terminalInput, setTerminalInput] = useState('');
+  const previewRef = useRef<HTMLIFrameElement>(null);
 
   const setWorkspace = useChatStore((state) => state.setWorkspace);
+  
+  // File store
+  const { 
+    files, 
+    activeFile, 
+    openFiles,
+    addFile, 
+    updateFile, 
+    deleteFile,
+    setActiveFile,
+    openFile,
+    closeFile,
+    getFileContent,
+    getFileByPath,
+  } = useFileStore();
   
   const workspace = workspaces[category] || workspaces['software-dev'];
   const isCybersecurity = category === 'cybersecurity';
@@ -56,21 +79,133 @@ export default function WorkspacePage() {
     // Start security scan with authorization
   };
 
+  // Terminal command handler
+  const handleTerminalCommand = (cmd: string) => {
+    setTerminalOutput(prev => [...prev, `$ ${cmd}`]);
+    
+    const commands: Record<string, () => string> = {
+      'ls': () => files.map(f => f.name).join('  ') || '(no files)',
+      'pwd': () => '/project',
+      'clear': () => { setTerminalOutput([]); return ''; },
+      'help': () => 'Available: ls, pwd, clear, cat <file>, touch <file>, rm <file>',
+      'date': () => new Date().toLocaleString(),
+      'whoami': () => 'developer',
+    };
+    
+    if (commands[cmd]) {
+      const result = commands[cmd]();
+      if (result) setTerminalOutput(prev => [...prev, result]);
+    } else if (cmd.startsWith('cat ')) {
+      const filename = cmd.slice(4).trim();
+      const file = files.find(f => f.name === filename || f.path === `/${filename}`);
+      if (file) {
+        setTerminalOutput(prev => [...prev, file.content]);
+      } else {
+        setTerminalOutput(prev => [...prev, `cat: ${filename}: No such file`]);
+      }
+    } else if (cmd.startsWith('touch ')) {
+      const filename = cmd.slice(6).trim();
+      addFile({ name: filename, path: `/${filename}`, content: '', language: '' });
+      setTerminalOutput(prev => [...prev, `Created ${filename}`]);
+    } else if (cmd.startsWith('rm ')) {
+      const filename = cmd.slice(3).trim();
+      const file = files.find(f => f.name === filename);
+      if (file) {
+        deleteFile(file.path);
+        setTerminalOutput(prev => [...prev, `Deleted ${filename}`]);
+      } else {
+        setTerminalOutput(prev => [...prev, `rm: ${filename}: No such file`]);
+      }
+    } else if (cmd.startsWith('echo ')) {
+      setTerminalOutput(prev => [...prev, cmd.slice(5)]);
+    } else {
+      setTerminalOutput(prev => [...prev, `Command not found: ${cmd}. Type 'help' for available commands.`]);
+    }
+  };
+
+  // Get HTML file for preview
+  const getHtmlFile = () => files.find(f => f.name.endsWith('.html'));
+  
+  // Get CSS files
+  const getCssFiles = () => files.filter(f => f.name.endsWith('.css'));
+  
+  // Get JS files
+  const getJsFiles = () => files.filter(f => f.name.endsWith('.js'));
+
+  // Generate preview HTML combining all files
+  const generatePreviewHtml = () => {
+    const htmlFile = getHtmlFile();
+    const cssFiles = getCssFiles();
+    const jsFiles = getJsFiles();
+    
+    if (!htmlFile) {
+      return `<!DOCTYPE html>
+<html><head><style>
+  body { font-family: system-ui; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #1a1a2e; color: #888; }
+</style></head>
+<body><div style="text-align: center;">
+  <h2>No HTML file to preview</h2>
+  <p>Create an .html file to see the preview</p>
+</div></body></html>`;
+    }
+    
+    let html = htmlFile.content;
+    
+    // Inject CSS
+    if (cssFiles.length > 0) {
+      const cssContent = cssFiles.map(f => f.content).join('\n');
+      if (html.includes('</head>')) {
+        html = html.replace('</head>', `<style>\n${cssContent}\n</style>\n</head>`);
+      } else {
+        html = `<style>\n${cssContent}\n</style>\n${html}`;
+      }
+    }
+    
+    // Inject JS
+    if (jsFiles.length > 0) {
+      const jsContent = jsFiles.map(f => f.content).join('\n');
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `<script>\n${jsContent}\n</script>\n</body>`);
+      } else {
+        html = `${html}\n<script>\n${jsContent}\n</script>`;
+      }
+    }
+    
+    return html;
+  };
+
+  // Refresh preview
+  const refreshPreview = () => {
+    if (previewRef.current) {
+      previewRef.current.srcdoc = generatePreviewHtml();
+    }
+  };
+
   return (
     <div className="h-screen bg-gray-950 flex flex-col">
       {/* Top Bar */}
       <header className="h-14 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            {sidebarOpen ? (
-              <PanelLeftClose className="w-5 h-5 text-gray-400" />
-            ) : (
-              <PanelLeft className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setNavSidebarOpen(!navSidebarOpen)}
+              className={`p-2 hover:bg-gray-800 rounded-lg transition-colors ${navSidebarOpen ? 'bg-gray-800' : ''}`}
+              title="Toggle Navigation"
+            >
+              {navSidebarOpen ? (
+                <PanelLeftClose className="w-5 h-5 text-gray-400" />
+              ) : (
+                <PanelLeft className="w-5 h-5 text-gray-400" />
+              )}
+            </button>
+            <button
+              onClick={() => setFileSidebarOpen(!fileSidebarOpen)}
+              className={`p-2 hover:bg-gray-800 rounded-lg transition-colors ${fileSidebarOpen ? 'bg-gray-800' : ''}`}
+              title="Toggle File Explorer"
+            >
+              <Files className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
           
           <div className="flex items-center gap-2">
             <div 
@@ -89,9 +224,15 @@ export default function WorkspacePage() {
             console.log('Menu action:', action);
             switch (action) {
               case 'new-file':
-                const newFile = { name: `untitled-${Date.now()}.ts`, path: `/untitled-${Date.now()}.ts` };
-                setFiles([...files, newFile]);
-                setActiveFile(newFile.path);
+                const filename = prompt('Enter filename:', 'untitled.html');
+                if (filename) {
+                  addFile({ 
+                    name: filename, 
+                    path: `/${filename}`, 
+                    content: getDefaultContent(filename),
+                    language: '',
+                  });
+                }
                 break;
               case 'new-folder':
                 // TODO: Implement folder creation
@@ -155,8 +296,50 @@ export default function WorkspacePage() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
+        {/* Navigation Sidebar - Industry Specific */}
+        <WorkspaceSidebar
+          workspace={category}
+          isOpen={navSidebarOpen}
+          onToggle={() => setNavSidebarOpen(!navSidebarOpen)}
+          onAction={(action) => {
+            setActiveSidebarItem(action);
+            // Handle navigation actions
+            switch (action) {
+              case 'editor':
+                setActiveTab('editor');
+                break;
+              case 'terminal':
+                setActiveTab('terminal');
+                break;
+              case 'preview':
+                setActiveTab('preview');
+                break;
+              case 'settings':
+                setShowSettings(true);
+                break;
+              case 'web-scanner':
+              case 'api-scanner':
+              case 'network-scanner':
+                setShowEngagementForm(true);
+                break;
+              case 'cvss-calculator':
+                setSecurityTool('cvss');
+                setActiveTab('security');
+                break;
+              case 'phishing-sim':
+              case 'awareness':
+                setSecurityTool('social-eng');
+                setActiveTab('security');
+                break;
+              default:
+                console.log('Sidebar action:', action);
+            }
+          }}
+          activeItem={activeSidebarItem}
+        />
+
         {/* Sidebar - File Explorer */}
-        {sidebarOpen && (
+        {fileSidebarOpen && (
           <motion.aside
             initial={{ width: 0 }}
             animate={{ width: 260 }}
@@ -167,11 +350,32 @@ export default function WorkspacePage() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-400">Explorer</span>
                 <div className="flex items-center gap-1">
-                  <button className="p-1 hover:bg-gray-800 rounded">
+                  <button 
+                    className="p-1 hover:bg-gray-800 rounded"
+                    onClick={() => {
+                      const filename = prompt('Enter filename:', 'untitled.html');
+                      if (filename) {
+                        addFile({ 
+                          name: filename, 
+                          path: `/${filename}`, 
+                          content: getDefaultContent(filename),
+                          language: '',
+                        });
+                      }
+                    }}
+                    title="New File"
+                  >
                     <Plus className="w-4 h-4 text-gray-500" />
                   </button>
-                  <button className="p-1 hover:bg-gray-800 rounded">
+                  <button className="p-1 hover:bg-gray-800 rounded" title="Upload File">
                     <Upload className="w-4 h-4 text-gray-500" />
+                  </button>
+                  <button 
+                    className="p-1 hover:bg-gray-800 rounded" 
+                    onClick={() => setFileSidebarOpen(false)}
+                    title="Close Explorer"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
                   </button>
                 </div>
               </div>
@@ -247,50 +451,117 @@ export default function WorkspacePage() {
           {/* Content Area */}
           <div className="flex-1 overflow-hidden">
             {activeTab === 'editor' && (
-              <div className="h-full">
-                {activeFile ? (
-                  <MonacoEditor
-                    height="100%"
-                    language="typescript"
-                    theme="vs-dark"
-                    value="// Start coding..."
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 14,
-                      lineNumbers: 'on',
-                      wordWrap: 'on',
-                    }}
-                  />
-                ) : (
-                  <EmptyState 
-                    title="No file open"
-                    description="Select a file from the explorer or create a new one"
-                  />
+              <div className="h-full flex flex-col">
+                {/* File Tabs */}
+                {openFiles.length > 0 && (
+                  <div className="flex items-center bg-gray-900 border-b border-gray-800 overflow-x-auto">
+                    {openFiles.map((path) => {
+                      const file = getFileByPath(path);
+                      return (
+                        <div
+                          key={path}
+                          className={`flex items-center gap-2 px-3 py-2 text-sm border-r border-gray-800 cursor-pointer ${
+                            activeFile === path ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-white'
+                          }`}
+                          onClick={() => setActiveFile(path)}
+                        >
+                          <Code className="w-3 h-3" />
+                          <span>{file?.name || path}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); closeFile(path); }}
+                            className="hover:bg-gray-700 rounded p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
-            )}
-
-            {activeTab === 'terminal' && (
-              <div className="h-full bg-black p-4 font-mono text-sm text-green-400">
-                <div>$ Ready for commands...</div>
-                <div className="flex items-center mt-2">
-                  <span className="text-blue-400">~/project $</span>
-                  <input
-                    type="text"
-                    className="flex-1 ml-2 bg-transparent outline-none"
-                    placeholder="Type command..."
-                  />
+                
+                {/* Editor */}
+                <div className="flex-1">
+                  {activeFile ? (
+                    <MonacoEditor
+                      height="100%"
+                      language={getFileByPath(activeFile)?.language || 'plaintext'}
+                      theme="vs-dark"
+                      value={getFileContent(activeFile) || ''}
+                      onChange={(value) => value && updateFile(activeFile, value)}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        wordWrap: 'on',
+                        automaticLayout: true,
+                      }}
+                    />
+                  ) : (
+                    <EmptyState 
+                      title="No file open"
+                      description="Create a new file from the menu or ask AI to create files for you"
+                    />
+                  )}
                 </div>
               </div>
             )}
 
+            {activeTab === 'terminal' && (
+              <div className="h-full bg-black p-4 font-mono text-sm text-green-400 flex flex-col">
+                <div className="flex-1 overflow-y-auto">
+                  {terminalOutput.map((line, i) => (
+                    <div key={i} className={line.startsWith('$') ? 'text-blue-400' : ''}>{line}</div>
+                  ))}
+                </div>
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (terminalInput.trim()) {
+                      handleTerminalCommand(terminalInput.trim());
+                      setTerminalInput('');
+                    }
+                  }}
+                  className="flex items-center mt-2 border-t border-gray-800 pt-2"
+                >
+                  <span className="text-blue-400">~/project $</span>
+                  <input
+                    type="text"
+                    value={terminalInput}
+                    onChange={(e) => setTerminalInput(e.target.value)}
+                    className="flex-1 ml-2 bg-transparent outline-none text-green-400"
+                    placeholder="Type command..."
+                    autoFocus
+                  />
+                </form>
+              </div>
+            )}
+
             {activeTab === 'preview' && (
-              <div className="h-full bg-white">
-                <iframe
-                  src="about:blank"
-                  className="w-full h-full border-0"
-                  title="Preview"
-                />
+              <div className="h-full flex flex-col bg-gray-900">
+                {/* Preview Toolbar */}
+                <div className="flex items-center gap-2 p-2 border-b border-gray-800">
+                  <button
+                    onClick={refreshPreview}
+                    className="flex items-center gap-1 px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded text-sm"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Refresh
+                  </button>
+                  <span className="text-sm text-gray-500">
+                    {getHtmlFile() ? `Previewing: ${getHtmlFile()?.name}` : 'No HTML file to preview'}
+                  </span>
+                </div>
+                
+                {/* Preview iframe */}
+                <div className="flex-1 bg-white">
+                  <iframe
+                    ref={previewRef}
+                    srcDoc={generatePreviewHtml()}
+                    className="w-full h-full border-0"
+                    title="Preview"
+                    sandbox="allow-scripts allow-same-origin"
+                  />
+                </div>
               </div>
             )}
 
@@ -737,4 +1008,48 @@ function AISettingsModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+// ============================================
+// HELPER: Default file content
+// ============================================
+
+function getDefaultContent(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  
+  const templates: Record<string, string> = {
+    'html': `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <h1>Hello World</h1>
+</body>
+</html>`,
+    'css': `/* Styles */
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0;
+  padding: 20px;
+}`,
+    'js': `// JavaScript
+console.log('Hello World');`,
+    'ts': `// TypeScript
+const greeting: string = 'Hello World';
+console.log(greeting);`,
+    'json': `{
+  "name": "project",
+  "version": "1.0.0"
+}`,
+    'py': `# Python
+print("Hello World")`,
+    'md': `# Title
+
+Content here...`,
+  };
+  
+  return templates[ext] || '';
 }

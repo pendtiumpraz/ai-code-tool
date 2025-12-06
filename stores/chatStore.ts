@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { AIStatus } from '@/components/chat/AIStatusIndicator';
+import { useFileStore } from './fileStore';
 
 export interface Message {
   id: string;
@@ -279,10 +280,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 };
                 currentToolCalls.push(toolCall);
                 setCurrentToolCall(toolCall);
-                // Add tool call info to message
-                const toolCallText = `\n\n🔧 **Calling tool:** \`${parsed.tool}\`\n`;
-                currentContent += toolCallText;
-                appendToMessage(assistantId, toolCallText);
+                
+                // Handle create_file tool call directly (when args contain the file)
+                if (parsed.tool === 'create_file' && parsed.args?.path && parsed.args?.content !== undefined) {
+                  const { path, content } = parsed.args;
+                  const filename = path.split('/').pop() || path;
+                  useFileStore.getState().addFile({
+                    name: filename,
+                    path: path.startsWith('/') ? path : `/${path}`,
+                    content: content,
+                    language: '',
+                  });
+                  toolCall.status = 'success';
+                  toolCall.result = { success: true, path, content };
+                  // Add file created info to message
+                  const fileCreatedText = `\n\n📄 **File created:** \`${path}\`\n`;
+                  currentContent += fileCreatedText;
+                  appendToMessage(assistantId, fileCreatedText);
+                } else {
+                  // Add tool call info to message
+                  const toolCallText = `\n\n🔧 **Calling tool:** \`${parsed.tool}\`\n`;
+                  currentContent += toolCallText;
+                  appendToMessage(assistantId, toolCallText);
+                }
                 break;
                 
               case 'tool_result':
@@ -293,6 +313,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   tc.result = parsed.result;
                 }
                 setCurrentToolCall(null);
+                
+                // Handle create_file tool - sync to fileStore
+                if (parsed.tool === 'create_file' && parsed.result?.success) {
+                  const { path, content } = parsed.result;
+                  if (path && content !== undefined) {
+                    const filename = path.split('/').pop() || path;
+                    useFileStore.getState().addFile({
+                      name: filename,
+                      path: path.startsWith('/') ? path : `/${path}`,
+                      content: content,
+                      language: '',
+                    });
+                  }
+                }
+                
                 // Add formatted tool result to message
                 const resultText = formatToolResult(parsed.tool, parsed.result);
                 currentContent += resultText;
@@ -396,6 +431,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
 function formatToolResult(toolName: string, result: any): string {
   if (!result) return '\n*No result*\n';
+  
+  // Handle create_file result
+  if (toolName === 'create_file') {
+    if (result.success) {
+      return `\n✅ **File created:** \`${result.path}\`\n`;
+    } else {
+      return `\n❌ **Failed to create file:** ${result.error || 'Unknown error'}\n`;
+    }
+  }
   
   if (toolName === 'security_scan') {
     const { summary, vulnerabilities, recommendations, techInfo, error } = result;
