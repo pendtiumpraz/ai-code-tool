@@ -139,7 +139,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Start thinking
       setAIStatus('thinking');
       
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
