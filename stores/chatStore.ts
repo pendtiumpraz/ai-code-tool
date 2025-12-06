@@ -22,7 +22,17 @@ export interface ToolCall {
   duration?: number;
 }
 
+interface WorkspaceChat {
+  messages: Message[];
+  systemPrompt?: string;
+}
+
 interface ChatState {
+  // Per-workspace chats
+  workspaceChats: Record<string, WorkspaceChat>;
+  currentWorkspace: string;
+  
+  // Current workspace messages (computed)
   messages: Message[];
   isStreaming: boolean;
   aiStatus: AIStatus;
@@ -31,6 +41,7 @@ interface ChatState {
   abortController: AbortController | null;
   
   // Actions
+  setWorkspace: (workspace: string) => void;
   addMessage: (message: Omit<Message, 'id' | 'timestamp' | 'status'>) => string;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   appendToMessage: (id: string, content: string) => void;
@@ -44,7 +55,21 @@ interface ChatState {
   clearChat: () => void;
 }
 
+// System prompts per workspace
+const WORKSPACE_PROMPTS: Record<string, string> = {
+  'cybersecurity': 'You are a cybersecurity expert AI assistant. Help with security scanning, vulnerability assessment, penetration testing guidance, and security best practices. Always emphasize ethical hacking and proper authorization.',
+  'software-dev': 'You are an expert software developer AI. Help with coding, debugging, architecture, and best practices across multiple programming languages and frameworks.',
+  'book-writing': 'You are a creative writing AI assistant. Help with story development, character creation, plot structure, editing, and publishing guidance.',
+  'data-analysis': 'You are a data science AI assistant. Help with data analysis, visualization, machine learning, statistics, and insights generation.',
+  'research': 'You are a research AI assistant. Help with literature review, research methodology, academic writing, and citation management.',
+  'content-marketing': 'You are a content marketing AI assistant. Help with SEO, copywriting, social media strategy, and content planning.',
+  'healthcare': 'You are a healthcare AI assistant. Help with medical research, clinical documentation, and healthcare workflows. Always recommend consulting healthcare professionals for medical decisions.',
+  'legal': 'You are a legal AI assistant. Help with legal research, document drafting, and compliance. Always recommend consulting licensed attorneys for legal advice.',
+};
+
 export const useChatStore = create<ChatState>((set, get) => ({
+  workspaceChats: {},
+  currentWorkspace: 'software-dev',
   messages: [],
   isStreaming: false,
   aiStatus: 'idle',
@@ -52,34 +77,85 @@ export const useChatStore = create<ChatState>((set, get) => ({
   currentToolCall: null,
   abortController: null,
   
+  setWorkspace: (workspace) => {
+    const { workspaceChats } = get();
+    // Initialize workspace chat if not exists
+    if (!workspaceChats[workspace]) {
+      set((state) => ({
+        workspaceChats: {
+          ...state.workspaceChats,
+          [workspace]: { messages: [], systemPrompt: WORKSPACE_PROMPTS[workspace] }
+        }
+      }));
+    }
+    set({ 
+      currentWorkspace: workspace,
+      messages: workspaceChats[workspace]?.messages || [],
+    });
+  },
+
   addMessage: (message) => {
     const id = nanoid();
+    const { currentWorkspace } = get();
     const newMessage: Message = {
       ...message,
       id,
       timestamp: new Date(),
       status: 'complete',
     };
-    set((state) => ({
-      messages: [...state.messages, newMessage],
-    }));
+    set((state) => {
+      const workspaceMessages = state.workspaceChats[currentWorkspace]?.messages || [];
+      const updatedMessages = [...workspaceMessages, newMessage];
+      return {
+        messages: updatedMessages,
+        workspaceChats: {
+          ...state.workspaceChats,
+          [currentWorkspace]: {
+            ...state.workspaceChats[currentWorkspace],
+            messages: updatedMessages,
+          }
+        }
+      };
+    });
     return id;
   },
   
   updateMessage: (id, updates) => {
-    set((state) => ({
-      messages: state.messages.map((m) =>
+    const { currentWorkspace } = get();
+    set((state) => {
+      const updatedMessages = state.messages.map((m) =>
         m.id === id ? { ...m, ...updates } : m
-      ),
-    }));
+      );
+      return {
+        messages: updatedMessages,
+        workspaceChats: {
+          ...state.workspaceChats,
+          [currentWorkspace]: {
+            ...state.workspaceChats[currentWorkspace],
+            messages: updatedMessages,
+          }
+        }
+      };
+    });
   },
   
   appendToMessage: (id, content) => {
-    set((state) => ({
-      messages: state.messages.map((m) =>
+    const { currentWorkspace } = get();
+    set((state) => {
+      const updatedMessages = state.messages.map((m) =>
         m.id === id ? { ...m, content: m.content + content } : m
-      ),
-    }));
+      );
+      return {
+        messages: updatedMessages,
+        workspaceChats: {
+          ...state.workspaceChats,
+          [currentWorkspace]: {
+            ...state.workspaceChats[currentWorkspace],
+            messages: updatedMessages,
+          }
+        }
+      };
+    });
   },
   
   setAIStatus: (status) => {
@@ -115,7 +191,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   sendMessage: async (content) => {
-    const { addMessage, updateMessage, appendToMessage, setAIStatus, setThinking, appendThinking, setCurrentToolCall } = get();
+    const { addMessage, updateMessage, appendToMessage, setAIStatus, setThinking, appendThinking, setCurrentToolCall, currentWorkspace, workspaceChats } = get();
     
     // Add user message
     addMessage({
@@ -139,14 +215,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Start thinking
       setAIStatus('thinking');
       
+      // Get system prompt for current workspace
+      const systemPrompt = workspaceChats[currentWorkspace]?.systemPrompt || WORKSPACE_PROMPTS[currentWorkspace] || WORKSPACE_PROMPTS['software-dev'];
+      
+      // Build messages with system prompt
+      const chatMessages = [
+        { role: 'system', content: systemPrompt },
+        ...get().messages.slice(0, -1).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      ];
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: get().messages.slice(0, -1).map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: chatMessages,
+          workspace: currentWorkspace,
           stream: true,
           enableThinking: true,
         }),
@@ -275,12 +361,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   clearChat: () => {
-    set({ 
-      messages: [], 
+    const { currentWorkspace } = get();
+    set((state) => ({
+      messages: [],
       currentThinking: '',
       currentToolCall: null,
       aiStatus: 'idle',
-    });
+      workspaceChats: {
+        ...state.workspaceChats,
+        [currentWorkspace]: {
+          ...state.workspaceChats[currentWorkspace],
+          messages: [],
+        }
+      }
+    }));
   },
 }));
 

@@ -21,6 +21,7 @@ import { CVSSCalculator } from '@/components/security/CVSSCalculator';
 import { SocialEngineeringSimulator } from '@/components/security/SocialEngineeringSimulator';
 
 import { workspaces } from '@/config/workspaces';
+import { useChatStore } from '@/stores/chatStore';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -34,14 +35,18 @@ export default function WorkspacePage() {
   const [showEngagementForm, setShowEngagementForm] = useState(false);
   const [securityTool, setSecurityTool] = useState<'scanner' | 'cvss' | 'social-eng' | null>(null);
 
+  const setWorkspace = useChatStore((state) => state.setWorkspace);
+  
   const workspace = workspaces[category] || workspaces['software-dev'];
   const isCybersecurity = category === 'cybersecurity';
 
   // Initialize workspace
   useEffect(() => {
+    // Set current workspace for chat
+    setWorkspace(category);
     // Load workspace-specific settings
     document.title = `${workspace.name} - AI Code Studio`;
-  }, [workspace]);
+  }, [category, workspace, setWorkspace]);
 
   const handleEngagementSubmit = (data: any) => {
     console.log('Engagement data:', data);
