@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Transform for response
-    const transformedUsers = users.map(user => ({
+    const transformedUsers = users.map((user: typeof users[number]) => ({
       id: user.id,
       name: user.name,
       email: user.email,
