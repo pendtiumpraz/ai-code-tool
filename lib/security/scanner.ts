@@ -530,6 +530,8 @@ export interface ScanResult {
     total: number;
   };
   recommendations: string[];
+  techInfo?: any;
+  error?: string;
 }
 
 // ============================================
