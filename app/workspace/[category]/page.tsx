@@ -641,7 +641,19 @@ export default function WorkspacePage() {
                       <SecurityToolCard
                         title="Web Scanner"
                         description="Scan websites for vulnerabilities"
-                        icon="🔍"
+                        icon="🌐"
+                        onClick={() => setShowEngagementForm(true)}
+                      />
+                      <SecurityToolCard
+                        title="API Scanner"
+                        description="Scan APIs for security issues"
+                        icon="🔌"
+                        onClick={() => setShowEngagementForm(true)}
+                      />
+                      <SecurityToolCard
+                        title="Network Scanner"
+                        description="Scan network infrastructure"
+                        icon="🖧"
                         onClick={() => setShowEngagementForm(true)}
                       />
                       <SecurityToolCard
