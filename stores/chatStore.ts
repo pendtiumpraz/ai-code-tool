@@ -215,26 +215,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Start thinking
       setAIStatus('thinking');
       
-      // Get system prompt for current workspace
-      const systemPrompt = workspaceChats[currentWorkspace]?.systemPrompt || WORKSPACE_PROMPTS[currentWorkspace] || WORKSPACE_PROMPTS['software-dev'];
-      
-      // Build messages with system prompt
-      const chatMessages = [
-        { role: 'system', content: systemPrompt },
-        ...get().messages.slice(0, -1).map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-      ];
+      // Build history (exclude the latest user message and empty assistant placeholder)
+      const history = get().messages.slice(0, -2).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
       
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: chatMessages,
+          message: content, // Current user message
+          history: history, // Previous conversation
           workspace: currentWorkspace,
-          stream: true,
-          enableThinking: true,
+          enableTools: true,
+          enableCodeExecution: true,
         }),
         signal: abortController.signal,
       });
@@ -258,58 +253,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const lines = chunk.split('\n').filter((line) => line.startsWith('data: '));
         
         for (const line of lines) {
-          const data = line.slice(6);
-          if (data === '[DONE]') continue;
+          const data = line.slice(6).trim();
+          if (!data || data === '[DONE]') continue;
           
           try {
             const parsed = JSON.parse(data);
             
-            // Handle thinking content
-            if (parsed.thinking) {
-              setAIStatus('thinking');
-              currentThinking += parsed.thinking;
-              setThinking(currentThinking);
-            }
-            
-            // Handle tool calls
-            if (parsed.tool_calls) {
-              setAIStatus('tool_calling');
-              for (const tc of parsed.tool_calls) {
+            // Handle different message types from API
+            switch (parsed.type) {
+              case 'text':
+                setAIStatus('generating');
+                if (parsed.content) {
+                  currentContent += parsed.content;
+                  appendToMessage(assistantId, parsed.content);
+                }
+                break;
+                
+              case 'tool_call':
+                setAIStatus('tool_calling');
                 const toolCall: ToolCall = {
-                  id: tc.id || nanoid(),
-                  name: tc.function?.name || tc.name,
-                  arguments: tc.function?.arguments 
-                    ? JSON.parse(tc.function.arguments) 
-                    : tc.arguments,
+                  id: nanoid(),
+                  name: parsed.tool,
+                  arguments: parsed.args || {},
                   status: 'running',
                 };
                 currentToolCalls.push(toolCall);
                 setCurrentToolCall(toolCall);
+                break;
                 
-                // Execute tool (simulated)
-                await executeToolCall(toolCall, (result) => {
-                  toolCall.status = 'success';
-                  toolCall.result = result;
-                  setCurrentToolCall(null);
-                });
-              }
+              case 'tool_result':
+                const tc = currentToolCalls.find(t => t.name === parsed.tool);
+                if (tc) {
+                  tc.status = 'success';
+                  tc.result = parsed.result;
+                }
+                setCurrentToolCall(null);
+                break;
+                
+              case 'code_execution':
+                setAIStatus('executing');
+                // Append code execution to message
+                const codeBlock = `\n\`\`\`python\n${parsed.code}\n\`\`\`\n**Output:**\n\`\`\`\n${parsed.output}\n\`\`\`\n`;
+                currentContent += codeBlock;
+                appendToMessage(assistantId, codeBlock);
+                break;
+                
+              case 'done':
+                // Final response
+                if (parsed.content && !currentContent) {
+                  appendToMessage(assistantId, parsed.content);
+                }
+                break;
+                
+              case 'error':
+                throw new Error(parsed.error || 'Unknown error');
             }
             
-            // Handle content
-            if (parsed.choices?.[0]?.delta?.content) {
-              setAIStatus('generating');
-              const content = parsed.choices[0].delta.content;
-              currentContent += content;
-              appendToMessage(assistantId, content);
+          } catch (e: any) {
+            if (e.message !== 'Unknown error') {
+              console.warn('Failed to parse SSE data:', e);
             }
-            
-            // Handle status updates
-            if (parsed.status) {
-              setAIStatus(parsed.status);
-            }
-            
-          } catch (e) {
-            console.warn('Failed to parse SSE data:', e);
           }
         }
       }
@@ -377,24 +380,3 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 }));
-
-// ============================================
-// TOOL EXECUTION (Simulated)
-// ============================================
-
-async function executeToolCall(
-  toolCall: ToolCall,
-  onComplete: (result: any) => void
-): Promise<void> {
-  // Simulate tool execution
-  await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 2000));
-  
-  const mockResults: Record<string, any> = {
-    search_web: { results: ['Result 1', 'Result 2', 'Result 3'] },
-    create_file: { success: true, path: toolCall.arguments.path },
-    run_command: { output: 'Command executed successfully', exitCode: 0 },
-    generate_image: { url: 'https://example.com/image.png' },
-  };
-  
-  onComplete(mockResults[toolCall.name] || { success: true });
-}
