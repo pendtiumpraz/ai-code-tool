@@ -313,6 +313,133 @@ export const TOOLS: Record<string, ToolDefinition> = {
     workspaces: ['cybersecurity'],
   },
 
+  'subdomain_finder': {
+    id: 'subdomain_finder',
+    name: 'Subdomain Finder',
+    description: 'Find subdomains for a given domain using DNS enumeration',
+    category: 'security',
+    parameters: [
+      { name: 'domain', type: 'string', description: 'Target domain (e.g., example.com)', required: true },
+    ],
+    handler: 'handleSubdomainFinder',
+    tokenCost: 30,
+    timeout: 120000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'port_scanner': {
+    id: 'port_scanner',
+    name: 'Port Scanner',
+    description: 'Scan common ports on a target host',
+    category: 'security',
+    parameters: [
+      { name: 'target', type: 'string', description: 'Target hostname or IP', required: true },
+      { name: 'ports', type: 'array', description: 'Specific ports to scan (optional)', required: false },
+    ],
+    handler: 'handlePortScanner',
+    tokenCost: 40,
+    timeout: 60000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'whois_lookup': {
+    id: 'whois_lookup',
+    name: 'WHOIS Lookup',
+    description: 'Get WHOIS information for a domain',
+    category: 'security',
+    parameters: [
+      { name: 'domain', type: 'string', description: 'Domain to lookup', required: true },
+    ],
+    handler: 'handleWhoisLookup',
+    tokenCost: 15,
+    timeout: 30000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'dns_lookup': {
+    id: 'dns_lookup',
+    name: 'DNS Lookup',
+    description: 'Get DNS records for a domain (A, AAAA, MX, NS, TXT, CNAME)',
+    category: 'security',
+    parameters: [
+      { name: 'domain', type: 'string', description: 'Domain to lookup', required: true },
+      { name: 'record_type', type: 'string', description: 'DNS record type', required: false, default: 'ALL', enum: ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'ALL'] },
+    ],
+    handler: 'handleDnsLookup',
+    tokenCost: 10,
+    timeout: 15000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'hash_generator': {
+    id: 'hash_generator',
+    name: 'Hash Generator',
+    description: 'Generate cryptographic hashes (MD5, SHA1, SHA256, SHA512)',
+    category: 'security',
+    parameters: [
+      { name: 'input', type: 'string', description: 'Text to hash', required: true },
+      { name: 'algorithm', type: 'string', description: 'Hash algorithm', required: false, default: 'all', enum: ['md5', 'sha1', 'sha256', 'sha512', 'all'] },
+    ],
+    handler: 'handleHashGenerator',
+    tokenCost: 5,
+    timeout: 5000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'encoder_decoder': {
+    id: 'encoder_decoder',
+    name: 'Encoder/Decoder',
+    description: 'Encode or decode data (Base64, URL, HTML, Hex, Unicode)',
+    category: 'security',
+    parameters: [
+      { name: 'input', type: 'string', description: 'Text to encode/decode', required: true },
+      { name: 'operation', type: 'string', description: 'Operation to perform', required: true, enum: ['base64-encode', 'base64-decode', 'url-encode', 'url-decode', 'html-encode', 'html-decode', 'hex-encode', 'hex-decode', 'rot13'] },
+    ],
+    handler: 'handleEncoderDecoder',
+    tokenCost: 5,
+    timeout: 5000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'password_generator': {
+    id: 'password_generator',
+    name: 'Password Generator',
+    description: 'Generate secure random passwords',
+    category: 'security',
+    parameters: [
+      { name: 'length', type: 'number', description: 'Password length', required: false, default: 16 },
+      { name: 'uppercase', type: 'boolean', description: 'Include uppercase letters', required: false, default: true },
+      { name: 'numbers', type: 'boolean', description: 'Include numbers', required: false, default: true },
+      { name: 'symbols', type: 'boolean', description: 'Include symbols', required: false, default: true },
+    ],
+    handler: 'handlePasswordGenerator',
+    tokenCost: 5,
+    timeout: 5000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
+  'jwt_decoder': {
+    id: 'jwt_decoder',
+    name: 'JWT Decoder',
+    description: 'Decode and analyze JWT tokens',
+    category: 'security',
+    parameters: [
+      { name: 'token', type: 'string', description: 'JWT token to decode', required: true },
+    ],
+    handler: 'handleJwtDecoder',
+    tokenCost: 5,
+    timeout: 5000,
+    requiresAuth: true,
+    workspaces: ['cybersecurity'],
+  },
+
   // ==========================================
   // DATA ANALYSIS
   // ==========================================
