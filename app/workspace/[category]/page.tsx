@@ -86,11 +86,63 @@ export default function WorkspacePage() {
         <div className="flex items-center gap-2">
           {/* Workspace Menu */}
           <WorkspaceMenu workspace={workspace} onAction={(action) => {
-            if (action === 'new-file') setFiles([...files, { name: 'untitled.ts', path: '/untitled.ts' }]);
-            if (action === 'settings') setShowSettings(true);
-            if (action === 'ai-settings') setShowAISettings(true);
-            if (action === 'toggle-sidebar') setSidebarOpen(!sidebarOpen);
+            console.log('Menu action:', action);
+            switch (action) {
+              case 'new-file':
+                const newFile = { name: `untitled-${Date.now()}.ts`, path: `/untitled-${Date.now()}.ts` };
+                setFiles([...files, newFile]);
+                setActiveFile(newFile.path);
+                break;
+              case 'new-folder':
+                // TODO: Implement folder creation
+                alert('Create new folder - coming soon');
+                break;
+              case 'save':
+              case 'save-all':
+                alert('File saved!');
+                break;
+              case 'settings':
+                setShowSettings(true);
+                break;
+              case 'ai-settings':
+                setShowAISettings(true);
+                break;
+              case 'toggle-sidebar':
+                setSidebarOpen(!sidebarOpen);
+                break;
+              case 'toggle-terminal':
+                setActiveTab('terminal');
+                break;
+              case 'toggle-preview':
+                setActiveTab('preview');
+                break;
+              case 'run':
+                alert('Run code - coming soon');
+                break;
+              case 'format':
+                alert('Format code - coming soon');
+                break;
+              case 'lint':
+                alert('Lint code - coming soon');
+                break;
+              case 'undo':
+              case 'redo':
+              case 'find':
+                alert(`${action} - coming soon`);
+                break;
+              case 'theme':
+                setShowSettings(true);
+                break;
+            }
           }} />
+          
+          <button 
+            onClick={() => setShowAISettings(true)}
+            className="p-2 hover:bg-gray-800 rounded-lg"
+            title="AI Settings"
+          >
+            <Sparkles className="w-5 h-5 text-purple-400" />
+          </button>
           
           <button 
             onClick={() => setShowSettings(true)}

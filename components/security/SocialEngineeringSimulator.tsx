@@ -488,12 +488,31 @@ function ReportsView() {
 
 function CampaignBuilderModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState(1);
+  const [isLaunching, setIsLaunching] = useState(false);
   const [campaignData, setCampaignData] = useState({
     name: '',
     type: 'phishing' as SEAttackType,
     templateId: '',
     targets: [] as SETarget[],
   });
+  
+  const handleLaunch = async () => {
+    if (!campaignData.name) {
+      alert('Please enter a campaign name');
+      setStep(1);
+      return;
+    }
+    
+    setIsLaunching(true);
+    
+    // Simulate campaign launch
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    alert(`Campaign "${campaignData.name}" launched successfully!\n\nType: ${campaignData.type}\nTemplate: ${campaignData.templateId || 'Default'}\nTargets: ${campaignData.targets.length || 'Demo mode'}`);
+    
+    setIsLaunching(false);
+    onClose();
+  };
 
   return (
     <motion.div
@@ -642,14 +661,21 @@ function CampaignBuilderModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={() => step > 1 ? setStep(step - 1) : onClose()}
             className="px-4 py-2 text-gray-400 hover:text-white"
+            disabled={isLaunching}
           >
             {step > 1 ? 'Previous' : 'Cancel'}
           </button>
           <button
-            onClick={() => step < 4 ? setStep(step + 1) : onClose()}
-            className="px-6 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg font-medium flex items-center gap-2"
+            onClick={() => step < 4 ? setStep(step + 1) : handleLaunch()}
+            disabled={isLaunching}
+            className="px-6 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/50 rounded-lg font-medium flex items-center gap-2"
           >
-            {step < 4 ? (
+            {isLaunching ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Launching...
+              </>
+            ) : step < 4 ? (
               <>
                 Next
                 <ChevronRight className="w-4 h-4" />
