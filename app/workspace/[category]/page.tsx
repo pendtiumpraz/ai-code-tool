@@ -357,10 +357,25 @@ export default function WorkspacePage() {
               case 'port-scanner':
               case 'whois-lookup':
               case 'dns-lookup':
+              case 'ip-lookup':
+              case 'shodan-search':
+              // Vulnerability tools
+              case 'cve-lookup':
+              case 'virustotal-scan':
               // Security tools
               case 'hash-generator':
               case 'encoder-decoder':
               case 'password-generator':
+              case 'jwt-decoder':
+              case 'security-headers':
+                setActiveSecurityTool(action);
+                setActiveTab('security');
+                setSecurityTool(null);
+                break;
+              // Reports (not implemented yet - show placeholder)
+              case 'scan-history':
+              case 'generate-report':
+              case 'report-templates':
                 setActiveSecurityTool(action);
                 setActiveTab('security');
                 setSecurityTool(null);

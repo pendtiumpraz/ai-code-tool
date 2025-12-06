@@ -148,9 +148,73 @@ export function SecurityToolsPanel({ tool, onClose }: SecurityToolsPanelProps) {
       apiTool: 'jwt-decoder',
       description: 'Decode and analyze JWT tokens',
     },
+    // Report tools (placeholder - these don't have API calls yet)
+    'scan-history': {
+      title: 'Scan History',
+      icon: Search,
+      color: 'text-blue-400',
+      placeholder: '',
+      api: '',
+      apiTool: 'scan-history',
+      description: 'View past scan results',
+    },
+    'generate-report': {
+      title: 'Generate Report',
+      icon: Shield,
+      color: 'text-green-400',
+      placeholder: '',
+      api: '',
+      apiTool: 'generate-report',
+      description: 'Create security assessment reports',
+    },
+    'report-templates': {
+      title: 'Report Templates',
+      icon: Key,
+      color: 'text-purple-400',
+      placeholder: '',
+      api: '',
+      apiTool: 'report-templates',
+      description: 'Manage report templates',
+    },
   };
 
   const config = toolConfig[tool];
+  
+  // Handle report tools with placeholder UI
+  if (tool === 'scan-history' || tool === 'generate-report' || tool === 'report-templates') {
+    return (
+      <div className="h-full flex flex-col bg-gray-900">
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg bg-gray-800 ${config?.color || 'text-gray-400'}`}>
+              {config?.icon && <config.icon className="w-5 h-5" />}
+            </div>
+            <div>
+              <h2 className="font-semibold">{config?.title || tool}</h2>
+              <p className="text-sm text-gray-500">{config?.description}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-800 flex items-center justify-center">
+              {config?.icon && <config.icon className="w-8 h-8 text-gray-500" />}
+            </div>
+            <h3 className="text-lg font-medium text-gray-300 mb-2">Coming Soon</h3>
+            <p className="text-gray-500 max-w-md">
+              {tool === 'scan-history' && 'Scan history will show all your past security scans and their results.'}
+              {tool === 'generate-report' && 'Generate comprehensive security assessment reports from your scan data.'}
+              {tool === 'report-templates' && 'Create and manage custom templates for your security reports.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   if (!config) {
     return (
       <div className="p-6 text-center text-gray-500">

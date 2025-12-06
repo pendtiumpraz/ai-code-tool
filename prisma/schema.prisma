@@ -71,13 +71,14 @@ model User {
   sessions      Session[]
   
   // User Data (ALL ISOLATED - no cross-user access)
-  subscription  Subscription?
-  projects      Project[]
-  files         UserFile[]
-  tasks         Task[]
-  chatHistory   ChatHistory[]
-  apiKeys       ApiKey[]
-  usageLogs     UsageLog[]
+  subscription    Subscription?
+  projects        Project[]
+  files           UserFile[]
+  tasks           Task[]
+  chatHistory     ChatHistory[]
+  apiKeys         ApiKey[]
+  usageLogs       UsageLog[]
+  securityKeys    UserSecurityKeys?
   
   // Admin: License Management
   createdLicenses  License[]  @relation("LicenseCreator")
@@ -486,6 +487,30 @@ model Template {
   @@index([workspace])
   @@index([isPublic])
   @@map("templates")
+}
+
+// ============================================
+// USER SECURITY API KEYS (External Services)
+// ============================================
+
+model UserSecurityKeys {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Encrypted API Keys (use encryption in application layer)
+  shodanKey       String?  @db.Text  // Shodan API key
+  virusTotalKey   String?  @db.Text  // VirusTotal API key
+  
+  // Future: Add more service keys as needed
+  // securityTrailsKey String?
+  // censysKey         String?
+  // abuseIpDbKey      String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_security_keys")
 }
 
 // ============================================
