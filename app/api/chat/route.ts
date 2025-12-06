@@ -18,18 +18,33 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      // Return streaming error for unauthenticated users
+      return createErrorStream('Please sign in to use the chat');
     }
 
     const body = await req.json();
     const { message, history = [], workspace = 'software-dev' } = body;
 
     if (!message) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+      return createErrorStream('Message is required');
     }
 
     if (!GOOGLE_AI_API_KEY) {
-      return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
+      // Return helpful message when API key is not configured
+      return createTextStream(`Hai! Saya AI Assistant. 
+
+Saat ini **GOOGLE_AI_API_KEY** belum dikonfigurasi di environment variables.
+
+Untuk mengaktifkan AI Chat:
+1. Buka [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Buat API key baru (gratis!)
+3. Tambahkan ke file \`.env.local\`:
+   \`\`\`
+   GOOGLE_AI_API_KEY=your-api-key-here
+   \`\`\`
+4. Restart server
+
+Setelah itu, saya bisa membantu Anda dengan berbagai tugas!`);
     }
 
     const systemPrompt = getSystemPrompt(workspace);
@@ -176,6 +191,50 @@ export async function POST(req: NextRequest) {
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Helper to create a streaming text response
+function createTextStream(text: string) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      // Stream the text in chunks
+      const chunks = text.match(/.{1,50}/g) || [text];
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`));
+        await sleep(20);
+      }
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
+}
+
+// Helper to create an error stream
+function createErrorStream(errorMessage: string) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`));
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 function getGeminiTools(workspace: string) {

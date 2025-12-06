@@ -467,7 +467,12 @@ export const useChatStore = create<ChatState>()(
                     break;
                     
                   case 'error':
-                    throw new Error(parsed.error || 'Unknown error');
+                    // Display error message in chat
+                    const errorMsg = parsed.error || 'Unknown error occurred';
+                    appendToMessage(assistantId, `**Error:** ${errorMsg}`);
+                    updateMessage(assistantId, { status: 'error' });
+                    setAIStatus('error');
+                    break;
                 }
               } catch (e: any) {
                 if (e.message !== 'Unknown error') {
