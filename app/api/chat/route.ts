@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { GeminiClient, toGeminiTools } from '@/lib/gemini-client';
-import { TOOLS, getFilteredToolsAsOpenAI } from '@/lib/tools/registry';
-import { ToolExecutor } from '@/lib/tools/executor';
-import { checkTokenQuota, recordTokenUsage, recordToolCall } from '@/lib/usage';
-import { prisma } from '@/lib/prisma';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
+const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY;
+
 // ============================================
-// CHAT API - Streaming with Tool Calling
+// CHAT API - Simple Direct Gemini Call
 // ============================================
 
 export async function POST(req: NextRequest) {
@@ -22,125 +19,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = session.user.id;
     const body = await req.json();
-    const { 
-      message, 
-      history = [], 
-      workspace = 'software-dev',
-      projectId,
-      enableTools = true,
-      enableCodeExecution = true,
-    } = body;
+    const { message, history = [], workspace = 'software-dev' } = body;
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    // Check quota
-    const quotaCheck = await checkTokenQuota(userId, 1000);
-    if (!quotaCheck.allowed) {
-      return NextResponse.json({ 
-        error: 'Quota exceeded', 
-        message: quotaCheck.reason 
-      }, { status: 429 });
+    if (!GOOGLE_AI_API_KEY) {
+      return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
     }
 
-    // Get user's plan for tool filtering
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { subscription: { include: { plan: true } } },
-    });
-    const planName = user?.subscription?.plan?.name || 'free';
-
-    // Initialize Gemini client
-    const gemini = new GeminiClient();
-
-    // Get available tools for this workspace/plan
-    const availableTools = enableTools 
-      ? getFilteredToolsAsOpenAI(workspace, planName)
-      : [];
-
-    // Convert to Gemini format
-    const geminiTools = availableTools.length > 0 
-      ? toGeminiTools(availableTools.map((t: any) => ({
-          name: t.function.name,
-          description: t.function.description,
-          parameters: t.function.parameters,
-        })))
-      : [];
-
-    // Build system prompt based on workspace
+    // Build system prompt
     const systemPrompt = getSystemPrompt(workspace);
 
-    // Create streaming response
+    // Build conversation
+    const contents = [
+      ...history.map((m: any) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      })),
+      { role: 'user', parts: [{ text: message }] }
+    ];
+
+    // Call Gemini API directly
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Gemini API error:', error);
+      return NextResponse.json({ error: `Gemini API error: ${response.status}` }, { status: 500 });
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Stream response
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          // Initialize tool executor
-          const executor = new ToolExecutor({
-            userId,
-            projectId,
-            workspace,
-            planName,
-            accessToken: session.user.googleAccessToken,
-          });
-
-          // Run agent loop
-          const result = await gemini.runAgent({
-            task: message,
-            systemPrompt,
-            tools: geminiTools,
-            enableCodeExecution,
-            maxIterations: 10,
-            
-            executeFunction: async (name, args) => {
-              // Execute tool
-              const result = await executor.execute(name, args);
-              return result.success ? result.result : { error: result.error };
-            },
-
-            onThinking: (text) => {
-              // Stream thinking text
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`));
-            },
-
-            onToolCall: (name, args) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'tool_call', tool: name, args })}\n\n`));
-            },
-
-            onToolResult: (name, result) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'tool_result', tool: name, result })}\n\n`));
-            },
-
-            onCodeExecution: (code, output) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'code_execution', code, output })}\n\n`));
-            },
-          });
-
-          // Record usage
-          const estimatedTokens = (message.length + result.result.length) / 4;
-          await recordTokenUsage(userId, Math.round(estimatedTokens), 'gemini-2.0-flash');
-
-          // Send final result
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-            type: 'done', 
-            content: result.result,
-            iterations: result.iterations,
-            toolCalls: result.toolCalls.length,
-            codeExecutions: result.codeExecutions.length,
-          })}\n\n`));
-
-          controller.close();
-
-        } catch (error: any) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-            type: 'error', 
-            error: error.message 
-          })}\n\n`));
-          controller.close();
-        }
+      start(controller) {
+        // Send text in chunks for streaming effect
+        const chunks = text.match(/.{1,50}/g) || [text];
+        chunks.forEach((chunk: string, i: number) => {
+          setTimeout(() => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`));
+            if (i === chunks.length - 1) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', content: text })}\n\n`));
+              controller.close();
+            }
+          }, i * 20);
+        });
       },
     });
 
@@ -175,24 +117,33 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
     }
 
-    // Check quota
-    const quotaCheck = await checkTokenQuota(session.user.id, 500);
-    if (!quotaCheck.allowed) {
-      return NextResponse.json({ error: quotaCheck.reason }, { status: 429 });
+    if (!GOOGLE_AI_API_KEY) {
+      return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
     }
 
-    // Simple chat without tools (uses lite model)
-    const gemini = new GeminiClient();
-    const response = await gemini.chat(message, {
-      systemPrompt: getSystemPrompt(workspace),
-      model: 'gemini-2.0-flash-lite', // Fast for simple chat
-    });
+    const systemPrompt = getSystemPrompt(workspace);
 
-    // Record usage
-    const estimatedTokens = (message.length + response.length) / 4;
-    await recordTokenUsage(session.user.id, Math.round(estimatedTokens), 'gemini-2.0-flash-lite');
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: message }] }],
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+        }),
+      }
+    );
 
-    return NextResponse.json({ response });
+    if (!response.ok) {
+      const error = await response.text();
+      return NextResponse.json({ error: `API error: ${response.status}` }, { status: 500 });
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    return NextResponse.json({ response: text });
 
   } catch (error: any) {
     console.error('Simple chat error:', error);
