@@ -286,6 +286,26 @@ export class ToolExecutor {
       case 'handleSocialEngineeringCampaign':
         return this.handleSocialEngineeringCampaign(args as any);
         
+      // Security Reconnaissance Tools
+      case 'handleSubdomainFinder':
+        return this.handleSubdomainFinder(args as any);
+      case 'handlePortScanner':
+        return this.handlePortScanner(args as any);
+      case 'handleWhoisLookup':
+        return this.handleWhoisLookup(args as any);
+      case 'handleDnsLookup':
+        return this.handleDnsLookup(args as any);
+        
+      // Security Utility Tools
+      case 'handleHashGenerator':
+        return this.handleHashGenerator(args as any);
+      case 'handleEncoderDecoder':
+        return this.handleEncoderDecoder(args as any);
+      case 'handlePasswordGenerator':
+        return this.handlePasswordGenerator(args as any);
+      case 'handleJwtDecoder':
+        return this.handleJwtDecoder(args as any);
+        
       // Data operations
       case 'handleDataAnalyze':
         return this.handleDataAnalyze(args as any);
@@ -634,6 +654,343 @@ ${args.include_remediation ? `\n**Remediation:** ${v.remediation || 'See documen
       action: args.action,
       status: 'success',
       message: `Campaign ${args.action} completed`,
+    };
+  }
+  
+  // ============================================
+  // SECURITY RECONNAISSANCE HANDLERS
+  // ============================================
+  
+  private async handleSubdomainFinder(args: { domain: string }): Promise<any> {
+    const dns = await import('dns').then(m => m.promises);
+    const subdomains: Array<{ subdomain: string; ip: string | null; status: string }> = [];
+    
+    // Common subdomain prefixes to check
+    const prefixes = [
+      'www', 'mail', 'ftp', 'webmail', 'smtp', 'pop', 'ns1', 'ns2',
+      'api', 'dev', 'staging', 'test', 'admin', 'portal', 'blog',
+      'shop', 'store', 'cdn', 'img', 'images', 'static', 'assets',
+      'app', 'mobile', 'beta', 'demo', 'support', 'help', 'docs'
+    ];
+    
+    // Check main domain first
+    try {
+      const mainAddresses = await dns.resolve4(args.domain);
+      subdomains.push({
+        subdomain: args.domain,
+        ip: mainAddresses[0] || null,
+        status: 'active'
+      });
+    } catch {
+      subdomains.push({
+        subdomain: args.domain,
+        ip: null,
+        status: 'not_resolved'
+      });
+    }
+    
+    // Check subdomains
+    for (const prefix of prefixes) {
+      const subdomain = `${prefix}.${args.domain}`;
+      try {
+        const addresses = await dns.resolve4(subdomain);
+        subdomains.push({
+          subdomain,
+          ip: addresses[0] || null,
+          status: 'active'
+        });
+      } catch {
+        // Subdomain doesn't exist or can't be resolved
+      }
+    }
+    
+    return {
+      domain: args.domain,
+      found: subdomains.length,
+      subdomains
+    };
+  }
+  
+  private async handlePortScanner(args: { target: string; ports?: number[] }): Promise<any> {
+    const net = await import('net');
+    
+    const commonPorts = args.ports || [
+      21, 22, 23, 25, 53, 80, 110, 143, 443, 445,
+      993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 8443
+    ];
+    
+    const portNames: Record<number, string> = {
+      21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
+      80: 'HTTP', 110: 'POP3', 143: 'IMAP', 443: 'HTTPS', 445: 'SMB',
+      993: 'IMAPS', 995: 'POP3S', 1433: 'MSSQL', 1521: 'Oracle',
+      3306: 'MySQL', 3389: 'RDP', 5432: 'PostgreSQL', 5900: 'VNC',
+      6379: 'Redis', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt'
+    };
+    
+    const results: Array<{ port: number; service: string; status: string }> = [];
+    
+    const checkPort = (port: number): Promise<boolean> => {
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(2000);
+        
+        socket.on('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        
+        socket.on('timeout', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        
+        socket.on('error', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        
+        socket.connect(port, args.target);
+      });
+    };
+    
+    // Scan ports in parallel with limit
+    const batchSize = 10;
+    for (let i = 0; i < commonPorts.length; i += batchSize) {
+      const batch = commonPorts.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (port) => {
+          const isOpen = await checkPort(port);
+          return {
+            port,
+            service: portNames[port] || 'Unknown',
+            status: isOpen ? 'open' : 'closed'
+          };
+        })
+      );
+      results.push(...batchResults);
+    }
+    
+    const openPorts = results.filter(r => r.status === 'open');
+    
+    return {
+      target: args.target,
+      scannedPorts: commonPorts.length,
+      openCount: openPorts.length,
+      ports: results.filter(r => r.status === 'open') // Only return open ports
+    };
+  }
+  
+  private async handleWhoisLookup(args: { domain: string }): Promise<any> {
+    // Use a WHOIS API service
+    try {
+      const response = await fetch(`https://whois.freeaiapi.xyz/?name=${encodeURIComponent(args.domain)}`);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          domain: args.domain,
+          ...data
+        };
+      }
+    } catch {
+      // Fallback
+    }
+    
+    // Return basic info if API fails
+    return {
+      domain: args.domain,
+      registrar: 'Unknown (WHOIS lookup failed)',
+      created: null,
+      expires: null,
+      nameServers: [],
+      status: 'WHOIS lookup unavailable'
+    };
+  }
+  
+  private async handleDnsLookup(args: { domain: string; record_type?: string }): Promise<any> {
+    const dns = await import('dns').then(m => m.promises);
+    const results: Record<string, any[]> = {};
+    const recordType = args.record_type || 'ALL';
+    
+    const lookups: Array<{ type: string; fn: () => Promise<any> }> = [
+      { type: 'A', fn: () => dns.resolve4(args.domain) },
+      { type: 'AAAA', fn: () => dns.resolve6(args.domain) },
+      { type: 'MX', fn: () => dns.resolveMx(args.domain) },
+      { type: 'NS', fn: () => dns.resolveNs(args.domain) },
+      { type: 'TXT', fn: () => dns.resolveTxt(args.domain) },
+      { type: 'CNAME', fn: () => dns.resolveCname(args.domain) },
+    ];
+    
+    for (const lookup of lookups) {
+      if (recordType === 'ALL' || recordType === lookup.type) {
+        try {
+          results[lookup.type] = await lookup.fn();
+        } catch {
+          results[lookup.type] = [];
+        }
+      }
+    }
+    
+    return {
+      domain: args.domain,
+      records: results
+    };
+  }
+  
+  // ============================================
+  // SECURITY UTILITY HANDLERS
+  // ============================================
+  
+  private async handleHashGenerator(args: { input: string; algorithm?: string }): Promise<any> {
+    const crypto = await import('crypto');
+    const algorithm = args.algorithm || 'all';
+    const hashes: Record<string, string> = {};
+    
+    const algorithms = algorithm === 'all' 
+      ? ['md5', 'sha1', 'sha256', 'sha512']
+      : [algorithm];
+    
+    for (const algo of algorithms) {
+      hashes[algo] = crypto.createHash(algo).update(args.input).digest('hex');
+    }
+    
+    return {
+      input: args.input.length > 100 ? args.input.substring(0, 100) + '...' : args.input,
+      inputLength: args.input.length,
+      hashes
+    };
+  }
+  
+  private async handleEncoderDecoder(args: { input: string; operation: string }): Promise<any> {
+    let output = '';
+    const op = args.operation;
+    
+    switch (op) {
+      case 'base64-encode':
+        output = Buffer.from(args.input).toString('base64');
+        break;
+      case 'base64-decode':
+        output = Buffer.from(args.input, 'base64').toString('utf8');
+        break;
+      case 'url-encode':
+        output = encodeURIComponent(args.input);
+        break;
+      case 'url-decode':
+        output = decodeURIComponent(args.input);
+        break;
+      case 'html-encode':
+        output = args.input
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+        break;
+      case 'html-decode':
+        output = args.input
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#039;/g, "'");
+        break;
+      case 'hex-encode':
+        output = Buffer.from(args.input).toString('hex');
+        break;
+      case 'hex-decode':
+        output = Buffer.from(args.input, 'hex').toString('utf8');
+        break;
+      case 'rot13':
+        output = args.input.replace(/[a-zA-Z]/g, (c) => {
+          const base = c <= 'Z' ? 65 : 97;
+          return String.fromCharCode(((c.charCodeAt(0) - base + 13) % 26) + base);
+        });
+        break;
+      default:
+        throw new Error(`Unknown operation: ${op}`);
+    }
+    
+    return {
+      input: args.input,
+      operation: op,
+      output
+    };
+  }
+  
+  private async handlePasswordGenerator(args: { 
+    length?: number; 
+    uppercase?: boolean; 
+    numbers?: boolean; 
+    symbols?: boolean 
+  }): Promise<any> {
+    const crypto = await import('crypto');
+    const length = args.length || 16;
+    const useUpper = args.uppercase !== false;
+    const useNumbers = args.numbers !== false;
+    const useSymbols = args.symbols !== false;
+    
+    let charset = 'abcdefghijklmnopqrstuvwxyz';
+    if (useUpper) charset += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    if (useNumbers) charset += '0123456789';
+    if (useSymbols) charset += '!@#$%^&*()_+-=[]{}|;:,.<>?';
+    
+    let password = '';
+    const randomBytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i++) {
+      password += charset[randomBytes[i] % charset.length];
+    }
+    
+    // Calculate entropy
+    const entropy = Math.log2(Math.pow(charset.length, length));
+    let strength = 'weak';
+    if (entropy >= 80) strength = 'very_strong';
+    else if (entropy >= 60) strength = 'strong';
+    else if (entropy >= 40) strength = 'medium';
+    
+    return {
+      password,
+      length,
+      entropy: Math.round(entropy),
+      strength,
+      charset: {
+        lowercase: true,
+        uppercase: useUpper,
+        numbers: useNumbers,
+        symbols: useSymbols
+      }
+    };
+  }
+  
+  private async handleJwtDecoder(args: { token: string }): Promise<any> {
+    const parts = args.token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format - expected 3 parts separated by dots');
+    }
+    
+    const decodeBase64Url = (str: string) => {
+      str = str.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = str.length % 4;
+      if (pad) str += '='.repeat(4 - pad);
+      return JSON.parse(Buffer.from(str, 'base64').toString('utf8'));
+    };
+    
+    const header = decodeBase64Url(parts[0]);
+    const payload = decodeBase64Url(parts[1]);
+    
+    // Check expiration
+    let isExpired = false;
+    let expiresAt = null;
+    if (payload.exp) {
+      expiresAt = new Date(payload.exp * 1000).toISOString();
+      isExpired = Date.now() > payload.exp * 1000;
+    }
+    
+    return {
+      header,
+      payload,
+      signature: parts[2],
+      isExpired,
+      expiresAt,
+      issuedAt: payload.iat ? new Date(payload.iat * 1000).toISOString() : null
     };
   }
   
