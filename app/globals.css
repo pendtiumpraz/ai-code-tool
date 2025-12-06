@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 9, 9, 11;
+  --background-end-rgb: 9, 9, 11;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #404040;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Monaco editor customization */
+.monaco-editor {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+/* Xterm customization */
+.xterm {
+  padding: 8px;
+}
+
+/* Animation utilities */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+/* Typography */
+.prose-invert {
+  --tw-prose-body: #d1d5db;
+  --tw-prose-headings: #fff;
+  --tw-prose-lead: #9ca3af;
+  --tw-prose-links: #60a5fa;
+  --tw-prose-bold: #fff;
+  --tw-prose-counters: #9ca3af;
+  --tw-prose-bullets: #4b5563;
+  --tw-prose-hr: #374151;
+  --tw-prose-quotes: #f3f4f6;
+  --tw-prose-quote-borders: #374151;
+  --tw-prose-captions: #9ca3af;
+  --tw-prose-code: #fff;
+  --tw-prose-pre-code: #d1d5db;
+  --tw-prose-pre-bg: #1f2937;
+  --tw-prose-th-borders: #4b5563;
+  --tw-prose-td-borders: #374151;
+}
+
+/* Code blocks */
+pre {
+  @apply bg-gray-900 rounded-lg p-4 overflow-x-auto;
+}
+
+code {
+  @apply bg-gray-800 px-1.5 py-0.5 rounded text-sm;
+}
+
+pre code {
+  @apply bg-transparent p-0;
+}
+
+/* Form elements */
+input, textarea, select {
+  @apply bg-gray-800 border-gray-700 text-white placeholder-gray-500;
+}
+
+input:focus, textarea:focus, select:focus {
+  @apply border-purple-500 ring-purple-500;
+}
+
+/* Button variants */
+.btn-primary {
+  @apply bg-purple-500 hover:bg-purple-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+}
+
+.btn-secondary {
+  @apply bg-gray-700 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+}
+
+.btn-danger {
+  @apply bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+}
+
+/* Card styles */
+.card {
+  @apply bg-gray-800 border border-gray-700 rounded-xl p-4;
+}
+
+.card-hover {
+  @apply hover:border-gray-600 transition-colors cursor-pointer;
+}
+
+/* Status indicators */
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-online {
+  @apply bg-green-500;
+}
+
+.status-busy {
+  @apply bg-yellow-500 animate-pulse;
+}
+
+.status-offline {
+  @apply bg-gray-500;
+}
+
+.status-error {
+  @apply bg-red-500;
+}
+
+/* Severity badges */
+.severity-critical {
+  @apply bg-red-500/20 text-red-400 border-red-500/30;
+}
+
+.severity-high {
+  @apply bg-orange-500/20 text-orange-400 border-orange-500/30;
+}
+
+.severity-medium {
+  @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/30;
+}
+
+.severity-low {
+  @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
+}
+
+.severity-info {
+  @apply bg-gray-500/20 text-gray-400 border-gray-500/30;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply bg-gray-700 animate-pulse rounded;
+}
+
+/* Transitions */
+.transition-all-200 {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+/* Focus visible */
+*:focus-visible {
+  @apply outline-none ring-2 ring-purple-500 ring-offset-2 ring-offset-gray-900;
+}
+
+/* Selection */
+::selection {
+  @apply bg-purple-500/30 text-white;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Glass effect */
+.glass {
+  @apply bg-gray-900/50 backdrop-blur-xl border border-gray-800;
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r;
+}
+
+/* Security scan colors */
+.scan-progress {
+  background: linear-gradient(
+    90deg,
+    #ef4444 0%,
+    #f97316 25%,
+    #eab308 50%,
+    #22c55e 75%,
+    #3b82f6 100%
+  );
+}
