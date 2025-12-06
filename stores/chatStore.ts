@@ -279,15 +279,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 };
                 currentToolCalls.push(toolCall);
                 setCurrentToolCall(toolCall);
+                // Add tool call info to message
+                const toolCallText = `\n\n🔧 **Calling tool:** \`${parsed.tool}\`\n`;
+                currentContent += toolCallText;
+                appendToMessage(assistantId, toolCallText);
                 break;
                 
               case 'tool_result':
+                setAIStatus('generating');
                 const tc = currentToolCalls.find(t => t.name === parsed.tool);
                 if (tc) {
                   tc.status = 'success';
                   tc.result = parsed.result;
                 }
                 setCurrentToolCall(null);
+                // Add formatted tool result to message
+                const resultText = formatToolResult(parsed.tool, parsed.result);
+                currentContent += resultText;
+                appendToMessage(assistantId, resultText);
                 break;
                 
               case 'code_execution':
@@ -380,3 +389,72 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
   },
 }));
+
+// ============================================
+// HELPER: Format Tool Results
+// ============================================
+
+function formatToolResult(toolName: string, result: any): string {
+  if (!result) return '\n*No result*\n';
+  
+  if (toolName === 'security_scan') {
+    const { summary, vulnerabilities, recommendations, techInfo, error } = result;
+    
+    if (error) {
+      return `\n❌ **Scan Error:** ${error}\n`;
+    }
+    
+    let output = '\n\n📊 **Security Scan Results:**\n\n';
+    
+    // Summary
+    if (summary) {
+      output += '### Summary\n';
+      output += `| Severity | Count |\n|----------|-------|\n`;
+      output += `| 🔴 Critical | ${summary.critical || 0} |\n`;
+      output += `| 🟠 High | ${summary.high || 0} |\n`;
+      output += `| 🟡 Medium | ${summary.medium || 0} |\n`;
+      output += `| 🟢 Low | ${summary.low || 0} |\n`;
+      output += `| ℹ️ Info | ${summary.info || 0} |\n\n`;
+    }
+    
+    // Tech info
+    if (techInfo) {
+      output += '### Technology Detected\n';
+      if (techInfo.server) output += `- **Server:** ${techInfo.server}\n`;
+      if (techInfo.poweredBy) output += `- **Powered By:** ${techInfo.poweredBy}\n`;
+      if (techInfo.cms?.length) output += `- **CMS:** ${techInfo.cms.join(', ')}\n`;
+      if (techInfo.frameworks?.length) output += `- **Frameworks:** ${techInfo.frameworks.join(', ')}\n`;
+      output += '\n';
+    }
+    
+    // Vulnerabilities
+    if (vulnerabilities?.length > 0) {
+      output += '### Vulnerabilities Found\n\n';
+      vulnerabilities.forEach((v: any, i: number) => {
+        const icon = v.severity === 'critical' ? '🔴' : 
+                     v.severity === 'high' ? '🟠' : 
+                     v.severity === 'medium' ? '🟡' : 
+                     v.severity === 'low' ? '🟢' : 'ℹ️';
+        output += `${i + 1}. ${icon} **${v.title}** (${v.severity})\n`;
+        output += `   - ${v.description}\n`;
+        if (v.remediation) output += `   - *Fix:* ${v.remediation}\n`;
+        output += '\n';
+      });
+    } else {
+      output += '✅ **No vulnerabilities found!**\n\n';
+    }
+    
+    // Recommendations
+    if (recommendations?.length > 0) {
+      output += '### Recommendations\n';
+      recommendations.forEach((r: string, i: number) => {
+        output += `${i + 1}. ${r}\n`;
+      });
+    }
+    
+    return output;
+  }
+  
+  // Default: JSON format for other tools
+  return `\n**Result:**\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\`\n`;
+}

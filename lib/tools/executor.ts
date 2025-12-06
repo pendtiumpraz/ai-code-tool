@@ -11,6 +11,7 @@ import {
   recordTokenUsage 
 } from '@/lib/usage';
 import { getDriveService } from '@/lib/google-drive';
+import { realScan } from '@/lib/security/scanner';
 
 // ============================================
 // TYPES
@@ -556,19 +557,38 @@ export class ToolExecutor {
   // ============================================
   
   private async handleSecurityScan(args: { target: string; scan_type: string; depth?: string }): Promise<any> {
-    // Would integrate with security scanning modules
+    // Use real scanner for web targets
+    if (args.scan_type === 'web' && args.target.startsWith('http')) {
+      try {
+        const result = await realScan(args.target);
+        return {
+          target: args.target,
+          scanType: args.scan_type,
+          depth: args.depth || 'normal',
+          vulnerabilities: result.vulnerabilities,
+          summary: result.summary,
+          recommendations: result.recommendations,
+          techInfo: result.techInfo,
+        };
+      } catch (error: any) {
+        return {
+          target: args.target,
+          scanType: args.scan_type,
+          error: error.message,
+          vulnerabilities: [],
+          summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+        };
+      }
+    }
+    
+    // For other scan types, return placeholder
     return {
       target: args.target,
       scanType: args.scan_type,
       depth: args.depth || 'normal',
       vulnerabilities: [],
-      summary: {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0,
-        info: 0,
-      },
+      summary: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+      message: `Scan type '${args.scan_type}' not yet implemented`,
     };
   }
   
