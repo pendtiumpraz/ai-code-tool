@@ -297,7 +297,7 @@ export const TOOLS: Record<string, ToolDefinition> = {
     description: 'Generate a security assessment report in Markdown',
     category: 'security',
     parameters: [
-      { name: 'vulnerabilities', type: 'array', description: 'List of vulnerabilities', required: true },
+      { name: 'vulnerabilities', type: 'string', description: 'JSON array of vulnerabilities, e.g., [{"title":"XSS","severity":"high"}]', required: true },
       { name: 'format', type: 'string', description: 'Report format', required: false, default: 'markdown', enum: ['markdown', 'html', 'pdf'] },
       { name: 'include_remediation', type: 'boolean', description: 'Include remediation steps', required: false, default: true },
     ],
@@ -350,7 +350,7 @@ export const TOOLS: Record<string, ToolDefinition> = {
     category: 'security',
     parameters: [
       { name: 'target', type: 'string', description: 'Target hostname or IP', required: true },
-      { name: 'ports', type: 'array', description: 'Specific ports to scan (optional)', required: false },
+      { name: 'ports', type: 'string', description: 'Comma-separated list of ports to scan (optional, e.g., "22,80,443")', required: false },
     ],
     handler: 'handlePortScanner',
     tokenCost: 40,

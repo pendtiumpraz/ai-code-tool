@@ -768,13 +768,19 @@ ${args.include_remediation ? `\n**Remediation:** ${v.remediation || 'See documen
     };
   }
   
-  private async handlePortScanner(args: { target: string; ports?: number[] }): Promise<any> {
+  private async handlePortScanner(args: { target: string; ports?: string }): Promise<any> {
     const net = await import('net');
     
-    const commonPorts = args.ports || [
-      21, 22, 23, 25, 53, 80, 110, 143, 443, 445,
-      993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 8443
-    ];
+    // Parse ports from comma-separated string or use defaults
+    let commonPorts: number[];
+    if (args.ports) {
+      commonPorts = args.ports.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p) && p > 0 && p < 65536);
+    } else {
+      commonPorts = [
+        21, 22, 23, 25, 53, 80, 110, 143, 443, 445,
+        993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 8443
+      ];
+    }
     
     const portNames: Record<number, string> = {
       21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP', 53: 'DNS',
