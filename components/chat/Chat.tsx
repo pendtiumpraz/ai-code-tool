@@ -38,18 +38,15 @@ export function Chat() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [chatSize]);
   
-  const {
-    messages,
-    isStreaming,
-    aiStatus,
-    currentThinking,
-    currentToolCall,
-    inputValue,
-    addMessage,
-    sendMessage,
-    stopGeneration,
-    setInputValue,
-  } = useChatStore();
+  const messages = useChatStore((state) => state.messages);
+  const isStreaming = useChatStore((state) => state.isStreaming);
+  const aiStatus = useChatStore((state) => state.aiStatus);
+  const currentThinking = useChatStore((state) => state.currentThinking);
+  const currentToolCall = useChatStore((state) => state.currentToolCall);
+  const inputValue = useChatStore((state) => state.inputValue);
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const stopGeneration = useChatStore((state) => state.stopGeneration);
+  const setInputValue = useChatStore((state) => state.setInputValue);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,6 +55,13 @@ export function Chat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, currentThinking]);
+  
+  // Focus input when prompt is inserted from menu
+  useEffect(() => {
+    if (inputValue && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [inputValue]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
