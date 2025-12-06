@@ -34,6 +34,8 @@ export default function WorkspacePage() {
   const [files, setFiles] = useState<any[]>([]);
   const [showEngagementForm, setShowEngagementForm] = useState(false);
   const [securityTool, setSecurityTool] = useState<'scanner' | 'cvss' | 'social-eng' | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   const setWorkspace = useChatStore((state) => state.setWorkspace);
   
@@ -83,9 +85,18 @@ export default function WorkspacePage() {
 
         <div className="flex items-center gap-2">
           {/* Workspace Menu */}
-          <WorkspaceMenu workspace={workspace} />
+          <WorkspaceMenu workspace={workspace} onAction={(action) => {
+            if (action === 'new-file') setFiles([...files, { name: 'untitled.ts', path: '/untitled.ts' }]);
+            if (action === 'settings') setShowSettings(true);
+            if (action === 'ai-settings') setShowAISettings(true);
+            if (action === 'toggle-sidebar') setSidebarOpen(!sidebarOpen);
+          }} />
           
-          <button className="p-2 hover:bg-gray-800 rounded-lg">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 hover:bg-gray-800 rounded-lg"
+            title="Workspace Settings"
+          >
             <Settings className="w-5 h-5 text-gray-400" />
           </button>
         </div>
@@ -285,6 +296,19 @@ export default function WorkspacePage() {
           />
         </div>
       )}
+
+      {/* Workspace Settings Modal */}
+      {showSettings && (
+        <SettingsModal 
+          workspace={workspace} 
+          onClose={() => setShowSettings(false)} 
+        />
+      )}
+
+      {/* AI Settings Modal */}
+      {showAISettings && (
+        <AISettingsModal onClose={() => setShowAISettings(false)} />
+      )}
     </div>
   );
 }
@@ -293,8 +317,39 @@ export default function WorkspacePage() {
 // HELPER COMPONENTS
 // ============================================
 
-function WorkspaceMenu({ workspace }: { workspace: any }) {
+function WorkspaceMenu({ workspace, onAction }: { workspace: any; onAction: (action: string) => void }) {
   const [open, setOpen] = useState(false);
+
+  const defaultMenu = [
+    { id: 'file', label: 'File', submenu: [
+      { id: 'new-file', label: '📄 New File' },
+      { id: 'new-folder', label: '📁 New Folder' },
+      { id: 'save', label: '💾 Save' },
+      { id: 'save-all', label: '💾 Save All' },
+    ]},
+    { id: 'edit', label: 'Edit', submenu: [
+      { id: 'undo', label: '↩️ Undo' },
+      { id: 'redo', label: '↪️ Redo' },
+      { id: 'find', label: '🔍 Find & Replace' },
+    ]},
+    { id: 'view', label: 'View', submenu: [
+      { id: 'toggle-sidebar', label: '📂 Toggle Sidebar' },
+      { id: 'toggle-terminal', label: '💻 Toggle Terminal' },
+      { id: 'toggle-preview', label: '👁️ Toggle Preview' },
+    ]},
+    { id: 'tools', label: 'Tools', submenu: [
+      { id: 'run', label: '▶️ Run Code' },
+      { id: 'format', label: '✨ Format Code' },
+      { id: 'lint', label: '🔧 Lint' },
+    ]},
+    { id: 'settings', label: 'Settings', submenu: [
+      { id: 'settings', label: '⚙️ Workspace Settings' },
+      { id: 'ai-settings', label: '🤖 AI Settings' },
+      { id: 'theme', label: '🎨 Theme' },
+    ]},
+  ];
+
+  const menuItems = workspace.menu?.length > 0 ? workspace.menu : defaultMenu;
 
   return (
     <div className="relative">
@@ -307,24 +362,30 @@ function WorkspaceMenu({ workspace }: { workspace: any }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
-          {workspace.menu?.slice(0, 5).map((item: any) => (
-            <div key={item.id} className="border-b border-gray-700 last:border-0">
-              <div className="px-3 py-2 text-sm font-medium text-gray-400">
-                {item.label}
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
+            {menuItems.slice(0, 5).map((item: any) => (
+              <div key={item.id} className="border-b border-gray-700 last:border-0">
+                <div className="px-3 py-2 text-sm font-medium text-gray-400">
+                  {item.label}
+                </div>
+                {item.submenu?.slice(0, 4).map((sub: any) => (
+                  <button
+                    key={sub.id}
+                    className="w-full px-4 py-2 text-sm text-left hover:bg-gray-700 transition-colors"
+                    onClick={() => {
+                      onAction(sub.id);
+                      setOpen(false);
+                    }}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
               </div>
-              {item.submenu?.slice(0, 4).map((sub: any) => (
-                <button
-                  key={sub.id}
-                  className="w-full px-4 py-2 text-sm text-left hover:bg-gray-700 transition-colors"
-                  onClick={() => setOpen(false)}
-                >
-                  {sub.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -388,5 +449,240 @@ function SecurityToolCard({
       <h3 className="font-semibold mb-1">{title}</h3>
       <p className="text-sm text-gray-500">{description}</p>
     </button>
+  );
+}
+
+function SettingsModal({ workspace, onClose }: { workspace: any; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState('general');
+  
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <h2 className="text-lg font-semibold">⚙️ Workspace Settings</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg">
+            ✕
+          </button>
+        </div>
+        
+        {/* Tabs */}
+        <div className="flex border-b border-gray-800">
+          {['general', 'editor', 'terminal', 'appearance'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 text-sm capitalize ${
+                activeTab === tab 
+                  ? 'border-b-2 border-purple-500 text-white' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          {activeTab === 'general' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Workspace Name</label>
+                <input 
+                  type="text" 
+                  defaultValue={workspace.name}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Default Language</label>
+                <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+                  <option>TypeScript</option>
+                  <option>JavaScript</option>
+                  <option>Python</option>
+                  <option>Go</option>
+                  <option>Rust</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Auto-save</span>
+                <input type="checkbox" defaultChecked className="w-5 h-5" />
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'editor' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Font Size</label>
+                <input type="range" min="12" max="24" defaultValue="14" className="w-full" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Tab Size</label>
+                <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+                  <option>2 spaces</option>
+                  <option>4 spaces</option>
+                  <option>Tab</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Word Wrap</span>
+                <input type="checkbox" defaultChecked className="w-5 h-5" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Minimap</span>
+                <input type="checkbox" className="w-5 h-5" />
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'terminal' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Default Shell</label>
+                <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+                  <option>bash</option>
+                  <option>zsh</option>
+                  <option>fish</option>
+                  <option>powershell</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Font Size</label>
+                <input type="range" min="10" max="20" defaultValue="14" className="w-full" />
+              </div>
+            </div>
+          )}
+          
+          {activeTab === 'appearance' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Theme</label>
+                <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+                  <option>Dark (Default)</option>
+                  <option>Light</option>
+                  <option>Dracula</option>
+                  <option>Monokai</option>
+                  <option>Nord</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Accent Color</label>
+                <div className="flex gap-2">
+                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'].map((color) => (
+                    <button
+                      key={color}
+                      className="w-8 h-8 rounded-full border-2 border-gray-600 hover:border-white"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 border-t border-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">
+            Cancel
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AISettingsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <h2 className="text-lg font-semibold">🤖 AI Settings</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-800 rounded-lg">
+            ✕
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">AI Model</label>
+            <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+              <option>Gemini 2.0 Flash (Recommended)</option>
+              <option>Gemini 2.0 Flash Exp (Code Execution)</option>
+              <option>Gemini 2.0 Flash Lite (Fast)</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Exp = Full tools + Python execution, Flash = Tools only, Lite = Simple chat
+            </p>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Response Style</label>
+            <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
+              <option>Balanced</option>
+              <option>Concise</option>
+              <option>Detailed</option>
+              <option>Creative</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Temperature</label>
+            <input type="range" min="0" max="100" defaultValue="70" className="w-full" />
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Precise</span>
+              <span>Creative</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block">Enable Tool Calling</span>
+              <span className="text-xs text-gray-500">Allow AI to execute tools</span>
+            </div>
+            <input type="checkbox" defaultChecked className="w-5 h-5" />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block">Show Thinking Process</span>
+              <span className="text-xs text-gray-500">Display AI reasoning</span>
+            </div>
+            <input type="checkbox" defaultChecked className="w-5 h-5" />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block">Code Execution</span>
+              <span className="text-xs text-gray-500">Run Python in sandbox</span>
+            </div>
+            <input type="checkbox" defaultChecked className="w-5 h-5" />
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="flex justify-end gap-3 p-4 border-t border-gray-800">
+          <button onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white">
+            Cancel
+          </button>
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
