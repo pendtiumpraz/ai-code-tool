@@ -668,44 +668,42 @@ function SecurityScanResult({ data }: { data: any }) {
 }
 
 // ============================================
-// SPLIT MESSAGE CONTENT - Multiple bubbles for long responses
+// SPLIT MESSAGE CONTENT - Better formatting for long responses
 // ============================================
 
 function SplitMessageContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  // Split content into sections based on headers or significant breaks
-  const sections = parseContentSections(content);
+  // Pre-process content for better formatting
+  const formattedContent = formatSecurityResponse(content);
   
-  if (sections.length <= 1) {
-    // Single section - render as single bubble
-    return (
-      <div className="rounded-2xl px-4 py-3 bg-gray-800 text-gray-100 rounded-tl-sm">
-        <div className="prose prose-invert prose-sm max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {content}
-          </ReactMarkdown>
-          {isStreaming && (
-            <span className="inline-block w-2 h-5 bg-gray-400 animate-pulse ml-1" />
-          )}
-        </div>
-      </div>
-    );
-  }
-  
-  // Multiple sections - render as separate bubbles
   return (
-    <div className="space-y-2">
-      {sections.map((section, index) => (
+    <div className="space-y-3">
+      {formattedContent.map((section, index) => (
         <motion.div
           key={index}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
-          className={`rounded-2xl px-4 py-3 ${getSectionStyle(section.type)}`}
+          className={`rounded-2xl overflow-hidden ${section.style}`}
         >
-          <div className="prose prose-invert prose-sm max-w-none">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {section.content}
-            </ReactMarkdown>
+          {section.title && (
+            <div className={`px-4 py-2 font-semibold text-sm flex items-center gap-2 ${section.headerStyle}`}>
+              {section.icon && <span>{section.icon}</span>}
+              {section.title}
+            </div>
+          )}
+          <div className={`px-4 py-3 ${section.title ? 'pt-2' : ''}`}>
+            <div className="prose prose-invert prose-sm max-w-none 
+              prose-headings:text-white prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-2
+              prose-p:my-2 prose-p:leading-relaxed
+              prose-ul:my-2 prose-ul:space-y-1
+              prose-li:my-0
+              prose-strong:text-white
+              prose-code:bg-gray-900 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-purple-300
+              prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {section.content}
+              </ReactMarkdown>
+            </div>
           </div>
         </motion.div>
       ))}
@@ -716,70 +714,162 @@ function SplitMessageContent({ content, isStreaming }: { content: string; isStre
   );
 }
 
-interface ContentSection {
-  type: 'intro' | 'summary' | 'vulnerabilities' | 'recommendations' | 'code' | 'list' | 'text';
+interface FormattedSection {
+  type: string;
+  title?: string;
+  icon?: string;
   content: string;
+  style: string;
+  headerStyle?: string;
 }
 
-function parseContentSections(content: string): ContentSection[] {
-  const sections: ContentSection[] = [];
+function formatSecurityResponse(content: string): FormattedSection[] {
+  const sections: FormattedSection[] = [];
   
-  // Split by double newlines or headers
-  const parts = content.split(/\n(?=\*\*[A-Z]|\#{1,3}\s|Vulnerabilities:|Recommendations:|Summary:)/i);
+  // First, fix common formatting issues - add line breaks
+  let processed = content
+    // Add newlines before headers
+    .replace(/(\*\*Summary|\*\*Vulnerabilities|\*\*Recommendations|Summary:|Vulnerabilities:|Recommendations:)/gi, '\n\n$1')
+    // Add newlines before bullet points
+    .replace(/(\* [A-Z])/g, '\n$1')
+    // Fix "Header:*" pattern
+    .replace(/:\*\s/g, ':\n* ')
+    // Add space after severity indicators
+    .replace(/\((Critical|High|Medium|Low|Info)\):/gi, '($1):\n')
+    .trim();
   
-  for (const part of parts) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    
-    let type: ContentSection['type'] = 'text';
-    
-    // Detect section type
-    if (/^(\*\*)?Summary/i.test(trimmed) || /^\#{1,3}\s*Summary/i.test(trimmed)) {
-      type = 'summary';
-    } else if (/^(\*\*)?Vulnerabilities/i.test(trimmed) || /^\#{1,3}\s*Vulnerabilities/i.test(trimmed)) {
-      type = 'vulnerabilities';
-    } else if (/^(\*\*)?Recommendations/i.test(trimmed) || /^\#{1,3}\s*Recommendations/i.test(trimmed)) {
-      type = 'recommendations';
-    } else if (/^```/.test(trimmed)) {
-      type = 'code';
-    } else if (/^\*\s/.test(trimmed) || /^-\s/.test(trimmed) || /^\d+\.\s/.test(trimmed)) {
-      type = 'list';
-    } else if (sections.length === 0) {
-      type = 'intro';
-    }
-    
-    sections.push({ type, content: trimmed });
+  // Check if this looks like a security scan result
+  const isSecurityScan = /summary|vulnerabilities|recommendations|security.*scan|missing.*header/i.test(processed);
+  
+  if (!isSecurityScan || processed.length < 200) {
+    // Short message or non-security content - single bubble
+    return [{
+      type: 'text',
+      content: processed,
+      style: 'bg-gray-800 text-gray-100 rounded-tl-sm',
+    }];
   }
   
-  // Merge small adjacent text sections
-  const merged: ContentSection[] = [];
-  for (const section of sections) {
-    const last = merged[merged.length - 1];
-    if (last && last.type === 'text' && section.type === 'text' && last.content.length < 100) {
-      last.content += '\n\n' + section.content;
-    } else {
-      merged.push(section);
-    }
+  // Parse security scan response into sections
+  const summaryMatch = processed.match(/\*?\*?Summary:?\*?\*?([\s\S]*?)(?=\*?\*?(?:Vulnerabilities|Recommendations)|$)/i);
+  const vulnMatch = processed.match(/\*?\*?Vulnerabilities:?\*?\*?([\s\S]*?)(?=\*?\*?Recommendations|$)/i);
+  const recMatch = processed.match(/\*?\*?Recommendations:?\*?\*?([\s\S]*?)$/i);
+  
+  // Extract intro text (before Summary)
+  const introMatch = processed.match(/^([\s\S]*?)(?=\*?\*?Summary)/i);
+  if (introMatch && introMatch[1].trim()) {
+    sections.push({
+      type: 'intro',
+      content: introMatch[1].trim(),
+      style: 'bg-gray-800 text-gray-100 rounded-tl-sm',
+    });
   }
   
-  return merged.length > 0 ? merged : [{ type: 'text', content }];
+  // Summary section
+  if (summaryMatch && summaryMatch[1].trim()) {
+    const summaryContent = formatSummaryContent(summaryMatch[1].trim());
+    sections.push({
+      type: 'summary',
+      title: '📊 Ringkasan Scan',
+      icon: '',
+      content: summaryContent,
+      style: 'bg-blue-900/20 border border-blue-700/30 text-gray-100',
+      headerStyle: 'bg-blue-900/40 border-b border-blue-700/30',
+    });
+  }
+  
+  // Vulnerabilities section
+  if (vulnMatch && vulnMatch[1].trim()) {
+    const vulnContent = formatVulnerabilities(vulnMatch[1].trim());
+    sections.push({
+      type: 'vulnerabilities',
+      title: '🔴 Kerentanan Ditemukan',
+      icon: '',
+      content: vulnContent,
+      style: 'bg-red-900/10 border border-red-700/30 text-gray-100',
+      headerStyle: 'bg-red-900/30 border-b border-red-700/30',
+    });
+  }
+  
+  // Recommendations section
+  if (recMatch && recMatch[1].trim()) {
+    sections.push({
+      type: 'recommendations',
+      title: '✅ Rekomendasi',
+      icon: '',
+      content: formatRecommendations(recMatch[1].trim()),
+      style: 'bg-green-900/10 border border-green-700/30 text-gray-100',
+      headerStyle: 'bg-green-900/30 border-b border-green-700/30',
+    });
+  }
+  
+  // If no sections parsed, return as single block
+  if (sections.length === 0) {
+    return [{
+      type: 'text',
+      content: processed,
+      style: 'bg-gray-800 text-gray-100 rounded-tl-sm',
+    }];
+  }
+  
+  return sections;
 }
 
-function getSectionStyle(type: ContentSection['type']): string {
-  switch (type) {
-    case 'summary':
-      return 'bg-blue-900/30 border border-blue-700/30 text-gray-100';
-    case 'vulnerabilities':
-      return 'bg-red-900/20 border border-red-700/30 text-gray-100';
-    case 'recommendations':
-      return 'bg-green-900/20 border border-green-700/30 text-gray-100';
-    case 'code':
-      return 'bg-gray-900 border border-gray-700 text-gray-100 font-mono';
-    case 'intro':
-      return 'bg-gray-800 text-gray-100 rounded-tl-sm';
-    default:
-      return 'bg-gray-800 text-gray-100';
-  }
+function formatSummaryContent(content: string): string {
+  // Parse summary stats and format nicely
+  const stats = {
+    total: content.match(/total[:\s]*(\d+)/i)?.[1] || '0',
+    critical: content.match(/critical[:\s]*(\d+)/i)?.[1] || '0',
+    high: content.match(/high[:\s]*(\d+)/i)?.[1] || '0',
+    medium: content.match(/medium[:\s]*(\d+)/i)?.[1] || '0',
+    low: content.match(/low[:\s]*(\d+)/i)?.[1] || '0',
+    info: content.match(/info[:\s]*(\d+)/i)?.[1] || '0',
+  };
+  
+  return `| Severity | Count |
+|----------|-------|
+| 🔴 Critical | ${stats.critical} |
+| 🟠 High | ${stats.high} |
+| 🟡 Medium | ${stats.medium} |
+| 🔵 Low | ${stats.low} |
+| ⚪ Info | ${stats.info} |
+| **Total** | **${stats.total}** |`;
+}
+
+function formatVulnerabilities(content: string): string {
+  // Split by vulnerability entries and format each
+  const vulns = content.split(/\*\s+(?=Missing|[A-Z])/i).filter(v => v.trim());
+  
+  if (vulns.length === 0) return content;
+  
+  return vulns.map((vuln, i) => {
+    const severityMatch = vuln.match(/\((Critical|High|Medium|Low|Info)\)/i);
+    const severity = severityMatch ? severityMatch[1] : 'Info';
+    const severityIcon = {
+      'Critical': '🔴',
+      'High': '🟠', 
+      'Medium': '🟡',
+      'Low': '🔵',
+      'Info': '⚪'
+    }[severity] || '⚪';
+    
+    // Clean up the vulnerability text
+    let cleanVuln = vuln
+      .replace(/\((Critical|High|Medium|Low|Info)\)/gi, '')
+      .replace(/Remediation:/gi, '\n\n**Solusi:**')
+      .trim();
+    
+    return `### ${severityIcon} ${i + 1}. ${cleanVuln.split(':')[0] || 'Kerentanan'}\n**Severity:** ${severity}\n\n${cleanVuln.includes(':') ? cleanVuln.split(':').slice(1).join(':').trim() : ''}`;
+  }).join('\n\n---\n\n');
+}
+
+function formatRecommendations(content: string): string {
+  // Format recommendations as numbered list
+  const recs = content.split(/\*\s+/).filter(r => r.trim());
+  
+  if (recs.length === 0) return content;
+  
+  return recs.map((rec, i) => `${i + 1}. ${rec.trim()}`).join('\n');
 }
 
 // ============================================
