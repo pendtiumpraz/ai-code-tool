@@ -24,7 +24,6 @@ export function Chat() {
     const unsubscribe = useChatStore.subscribe(
       (state) => {
         if (state.inputValue && state.inputValue !== localInput) {
-          console.log('Syncing from store:', state.inputValue);
           setLocalInput(state.inputValue);
           // Clear the store value after syncing
           state.setInputValue('');

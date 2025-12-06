@@ -822,9 +822,7 @@ function WorkspaceMenu({ workspace, onAction }: { workspace: any; onAction: (act
   const handleMenuItemClick = (item: any) => {
     if (item.prompt) {
       // Insert prompt into chat input
-      console.log('Setting input value:', item.prompt);
       setInputValue(item.prompt);
-      console.log('Store inputValue after set:', useChatStore.getState().inputValue);
       setOpen(false);
       setActiveSubmenu(null);
     } else if (item.submenu) {
