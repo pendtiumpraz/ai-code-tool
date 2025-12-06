@@ -247,18 +247,17 @@ export const TOOLS: Record<string, ToolDefinition> = {
   'security_scan': {
     id: 'security_scan',
     name: 'Security Scan',
-    description: 'Scan a website or code for vulnerabilities',
+    description: 'Scan a website for security vulnerabilities including headers, SSL, exposed files, and more',
     category: 'security',
     parameters: [
-      { name: 'target', type: 'string', description: 'URL or file path to scan', required: true },
+      { name: 'target', type: 'string', description: 'URL to scan (must start with http:// or https://)', required: true },
       { name: 'scan_type', type: 'string', description: 'Type of scan', required: true, enum: ['web', 'code', 'api', 'config'] },
       { name: 'depth', type: 'string', description: 'Scan depth', required: false, default: 'normal', enum: ['quick', 'normal', 'deep'] },
     ],
     handler: 'handleSecurityScan',
-    tokenCost: 200,
-    timeout: 300000,  // 5 minutes
-    requiresAuth: true,
-    minPlan: 'starter',
+    tokenCost: 50,
+    timeout: 120000,  // 2 minutes
+    requiresAuth: false,  // Allow without auth for testing
     workspaces: ['cybersecurity'],
   },
   
