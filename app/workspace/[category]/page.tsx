@@ -8,12 +8,13 @@ import {
   PanelLeftClose, PanelLeft, MessageSquare, Code,
   Terminal as TerminalIcon, Eye, Files, Settings,
   Play, Save, Download, Upload, Plus, Search,
-  ChevronDown, MoreHorizontal, Sparkles, X, RefreshCw
+  ChevronDown, MoreHorizontal, Sparkles, X, RefreshCw, Clock
 } from 'lucide-react';
 
 // Dynamic imports for heavy components
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false });
 const Chat = dynamic(() => import('@/components/chat/Chat').then(m => m.Chat), { ssr: false });
+const ChatSessionSidebar = dynamic(() => import('@/components/chat/ChatSessionSidebar').then(m => m.ChatSessionSidebar), { ssr: false });
 
 // Security components
 import { PreEngagementForm } from '@/components/security/PreEngagementForm';
@@ -36,6 +37,7 @@ export default function WorkspacePage() {
   const [fileSidebarOpen, setFileSidebarOpen] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true); // Legacy - for file explorer toggle
   const [chatOpen, setChatOpen] = useState(true);
+  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'terminal' | 'preview' | 'security'>('editor');
   const [activeSidebarItem, setActiveSidebarItem] = useState('dashboard');
   const [showEngagementForm, setShowEngagementForm] = useState(false);
@@ -683,8 +685,29 @@ export default function WorkspacePage() {
           </div>
         </main>
 
-        {/* Chat Panel */}
-        {chatOpen && <Chat />}
+        {/* Chat Panel with History Sidebar */}
+        {chatOpen && (
+          <div className="flex h-full">
+            <ChatSessionSidebar
+              isOpen={chatHistoryOpen}
+              onToggle={() => setChatHistoryOpen(!chatHistoryOpen)}
+              workspace={category}
+            />
+            <div className="relative flex-1">
+              {/* History toggle button */}
+              {!chatHistoryOpen && (
+                <button
+                  onClick={() => setChatHistoryOpen(true)}
+                  className="absolute left-2 top-4 z-10 p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Show chat history"
+                >
+                  <Clock className="w-4 h-4 text-gray-400" />
+                </button>
+              )}
+              <Chat />
+            </div>
+          </div>
+        )}
 
         {/* Toggle Chat Button */}
         {!chatOpen && (
