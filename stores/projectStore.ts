@@ -1,158 +1,145 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export interface FileNode {
+export interface Project {
+  id: string;
   name: string;
-  path: string;
-  type: 'file' | 'directory';
-  children?: FileNode[];
-  driveId?: string;
+  description?: string;
+  workspace: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    files: number;
+    tasks: number;
+  };
 }
 
 interface ProjectState {
-  // Project info
-  projectId: string | null;
-  projectName: string | null;
-  
-  // Files
-  files: FileNode[];
-  openFiles: string[];
-  activeFile: string | null;
-  fileContents: Map<string, string>;
-  unsavedFiles: Set<string>;
+  projects: Project[];
+  activeProjectId: string | null;
+  isLoading: boolean;
   
   // Actions
-  setProject: (id: string, name: string) => void;
-  setFiles: (files: FileNode[]) => void;
-  openFile: (path: string) => void;
-  closeFile: (path: string) => void;
-  setActiveFile: (path: string | null) => void;
-  setFileContent: (path: string, content: string) => void;
-  markUnsaved: (path: string) => void;
-  markSaved: (path: string) => void;
-  addFile: (file: FileNode) => void;
-  deleteFile: (path: string) => void;
-  renameFile: (oldPath: string, newPath: string) => void;
+  loadProjects: (workspace?: string) => Promise<void>;
+  createProject: (name: string, workspace: string, description?: string) => Promise<Project | null>;
+  updateProject: (projectId: string, data: { name?: string; description?: string }) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
+  setActiveProject: (projectId: string | null) => void;
+  getActiveProject: () => Project | undefined;
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
-  projectId: null,
-  projectName: null,
-  files: [],
-  openFiles: [],
-  activeFile: null,
-  fileContents: new Map(),
-  unsavedFiles: new Set(),
-
-  setProject: (id, name) => set({ projectId: id, projectName: name }),
-
-  setFiles: (files) => set({ files }),
-
-  openFile: (path) => {
-    const { openFiles } = get();
-    if (!openFiles.includes(path)) {
-      set({ openFiles: [...openFiles, path], activeFile: path });
-    } else {
-      set({ activeFile: path });
-    }
-  },
-
-  closeFile: (path) => {
-    const { openFiles, activeFile } = get();
-    const newOpenFiles = openFiles.filter((f) => f !== path);
-    const newActiveFile = activeFile === path 
-      ? newOpenFiles[newOpenFiles.length - 1] || null 
-      : activeFile;
-    set({ openFiles: newOpenFiles, activeFile: newActiveFile });
-  },
-
-  setActiveFile: (path) => set({ activeFile: path }),
-
-  setFileContent: (path, content) => {
-    const { fileContents } = get();
-    const newContents = new Map(fileContents);
-    newContents.set(path, content);
-    set({ fileContents: newContents });
-  },
-
-  markUnsaved: (path) => {
-    const { unsavedFiles } = get();
-    const newUnsaved = new Set(unsavedFiles);
-    newUnsaved.add(path);
-    set({ unsavedFiles: newUnsaved });
-  },
-
-  markSaved: (path) => {
-    const { unsavedFiles } = get();
-    const newUnsaved = new Set(unsavedFiles);
-    newUnsaved.delete(path);
-    set({ unsavedFiles: newUnsaved });
-  },
-
-  addFile: (file) => {
-    const { files } = get();
-    set({ files: [...files, file] });
-  },
-
-  deleteFile: (path) => {
-    const { files, openFiles, activeFile, fileContents, unsavedFiles } = get();
-    
-    const filterFiles = (nodes: FileNode[]): FileNode[] => 
-      nodes.filter((node) => {
-        if (node.path === path) return false;
-        if (node.children) {
-          node.children = filterFiles(node.children);
+export const useProjectStore = create<ProjectState>()(
+  persist(
+    (set, get) => ({
+      projects: [],
+      activeProjectId: null,
+      isLoading: false,
+      
+      loadProjects: async (workspace) => {
+        set({ isLoading: true });
+        try {
+          const params = new URLSearchParams();
+          if (workspace) params.append('workspace', workspace);
+          
+          const res = await fetch(`/api/projects?${params}`);
+          if (res.ok) {
+            const data = await res.json();
+            set({ projects: data.projects });
+            
+            // If no active project, set first one as active
+            const state = get();
+            if (!state.activeProjectId && data.projects.length > 0) {
+              set({ activeProjectId: data.projects[0].id });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load projects:', error);
+        } finally {
+          set({ isLoading: false });
         }
-        return true;
-      });
-
-    const newContents = new Map(fileContents);
-    newContents.delete(path);
-    
-    const newUnsaved = new Set(unsavedFiles);
-    newUnsaved.delete(path);
-
-    set({
-      files: filterFiles([...files]),
-      openFiles: openFiles.filter((f) => f !== path),
-      activeFile: activeFile === path ? null : activeFile,
-      fileContents: newContents,
-      unsavedFiles: newUnsaved,
-    });
-  },
-
-  renameFile: (oldPath, newPath) => {
-    const { files, openFiles, activeFile, fileContents, unsavedFiles } = get();
-    
-    const renameInTree = (nodes: FileNode[]): FileNode[] =>
-      nodes.map((node) => {
-        if (node.path === oldPath) {
-          return { ...node, path: newPath, name: newPath.split('/').pop() || newPath };
+      },
+      
+      createProject: async (name, workspace, description) => {
+        try {
+          const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, workspace, description }),
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            const newProject = data.project;
+            
+            set(state => ({
+              projects: [newProject, ...state.projects],
+              activeProjectId: newProject.id,
+            }));
+            
+            return newProject;
+          }
+          return null;
+        } catch (error) {
+          console.error('Failed to create project:', error);
+          return null;
         }
-        if (node.children) {
-          node.children = renameInTree(node.children);
+      },
+      
+      updateProject: async (projectId, data) => {
+        try {
+          const res = await fetch('/api/projects', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId, ...data }),
+          });
+          
+          if (res.ok) {
+            const updated = await res.json();
+            set(state => ({
+              projects: state.projects.map(p =>
+                p.id === projectId ? { ...p, ...updated.project } : p
+              ),
+            }));
+          }
+        } catch (error) {
+          console.error('Failed to update project:', error);
         }
-        return node;
-      });
-
-    const newContents = new Map(fileContents);
-    const content = newContents.get(oldPath);
-    if (content) {
-      newContents.delete(oldPath);
-      newContents.set(newPath, content);
+      },
+      
+      deleteProject: async (projectId) => {
+        try {
+          const res = await fetch(`/api/projects?projectId=${projectId}`, {
+            method: 'DELETE',
+          });
+          
+          if (res.ok) {
+            set(state => {
+              const newProjects = state.projects.filter(p => p.id !== projectId);
+              return {
+                projects: newProjects,
+                activeProjectId: state.activeProjectId === projectId
+                  ? newProjects[0]?.id || null
+                  : state.activeProjectId,
+              };
+            });
+          }
+        } catch (error) {
+          console.error('Failed to delete project:', error);
+        }
+      },
+      
+      setActiveProject: (projectId) => set({ activeProjectId: projectId }),
+      
+      getActiveProject: () => {
+        const state = get();
+        return state.projects.find(p => p.id === state.activeProjectId);
+      },
+    }),
+    {
+      name: 'project-store',
+      partialize: (state) => ({
+        activeProjectId: state.activeProjectId,
+      }),
     }
-
-    const newUnsaved = new Set(unsavedFiles);
-    if (newUnsaved.has(oldPath)) {
-      newUnsaved.delete(oldPath);
-      newUnsaved.add(newPath);
-    }
-
-    set({
-      files: renameInTree([...files]),
-      openFiles: openFiles.map((f) => (f === oldPath ? newPath : f)),
-      activeFile: activeFile === oldPath ? newPath : activeFile,
-      fileContents: newContents,
-      unsavedFiles: newUnsaved,
-    });
-  },
-}));
+  )
+);

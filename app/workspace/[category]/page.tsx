@@ -25,10 +25,12 @@ import { ScannerPanel } from '@/components/security/ScannerPanel';
 
 // Workspace sidebar
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar';
+import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 
 import { workspaces } from '@/config/workspaces';
 import { useChatStore } from '@/stores/chatStore';
 import { useFileStore } from '@/stores/fileStore';
+import { useProjectStore } from '@/stores/projectStore';
 
 export default function WorkspacePage() {
   const params = useParams();
@@ -70,18 +72,35 @@ export default function WorkspacePage() {
     closeFile,
     getFileContent,
     getFileByPath,
+    loadFiles,
   } = useFileStore();
+
+  // Project store
+  const { 
+    projects,
+    activeProjectId,
+    loadProjects,
+  } = useProjectStore();
   
   const workspace = workspaces[category] || workspaces['software-dev'];
   const isCybersecurity = category === 'cybersecurity';
 
-  // Initialize workspace
+  // Initialize workspace and load projects
   useEffect(() => {
     // Set current workspace for chat
     setWorkspace(category);
     // Load workspace-specific settings
     document.title = `${workspace.name} - AI Code Studio`;
-  }, [category, workspace, setWorkspace]);
+    // Load projects for this workspace
+    loadProjects(category);
+  }, [category, workspace, setWorkspace, loadProjects]);
+
+  // Load files when active project changes
+  useEffect(() => {
+    if (activeProjectId) {
+      loadFiles(activeProjectId);
+    }
+  }, [activeProjectId, loadFiles]);
 
   const handleEngagementSubmit = (data: any) => {
     console.log('Engagement data:', data);
@@ -428,7 +447,10 @@ export default function WorkspacePage() {
                   </button>
                 </div>
               </div>
-              <div className="relative">
+              {/* Project Switcher */}
+              <ProjectSwitcher workspace={category} />
+              
+              <div className="relative mt-2">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="text"
@@ -440,7 +462,14 @@ export default function WorkspacePage() {
 
             {/* File Tree */}
             <div className="flex-1 overflow-y-auto p-2">
-              <FileTree files={files} onSelect={setActiveFile} />
+              {activeProjectId ? (
+                <FileTree files={files} onSelect={setActiveFile} />
+              ) : (
+                <div className="text-center text-gray-500 text-sm py-8">
+                  <p>No project selected</p>
+                  <p className="text-xs mt-1">Create or select a project to start</p>
+                </div>
+              )}
             </div>
 
             {/* Security Tools (Cybersecurity workspace) */}

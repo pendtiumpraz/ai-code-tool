@@ -18,11 +18,12 @@ interface FileState {
   openFiles: string[];
   isLoading: boolean;
   isSaving: boolean;
+  currentProjectId: string | null;
   
   // Actions
   loadFiles: (projectId?: string) => Promise<void>;
-  addFile: (file: Omit<FileItem, 'isFolder'>) => void;
-  saveFile: (path: string) => Promise<void>;
+  addFile: (file: Omit<FileItem, 'isFolder'>, projectId?: string) => void;
+  saveFile: (path: string, projectId?: string) => Promise<void>;
   saveAllFiles: () => Promise<void>;
   updateFile: (path: string, content: string) => void;
   deleteFile: (path: string) => Promise<void>;
@@ -32,6 +33,7 @@ interface FileState {
   getFileContent: (path: string) => string | undefined;
   getFileByPath: (path: string) => FileItem | undefined;
   clearFiles: () => void;
+  setCurrentProject: (projectId: string | null) => void;
 }
 
 function detectLanguage(filename: string): string {
@@ -76,9 +78,10 @@ export const useFileStore = create<FileState>()(
       openFiles: [],
       isLoading: false,
       isSaving: false,
+      currentProjectId: null,
       
       loadFiles: async (projectId) => {
-        set({ isLoading: true });
+        set({ isLoading: true, currentProjectId: projectId || null });
         try {
           const params = new URLSearchParams();
           if (projectId) params.append('projectId', projectId);
@@ -91,7 +94,9 @@ export const useFileStore = create<FileState>()(
                 ...f,
                 language: detectLanguage(f.name),
                 isSaved: true,
-              }))
+              })),
+              openFiles: [],
+              activeFile: null,
             });
           }
         } catch (error) {
@@ -101,7 +106,16 @@ export const useFileStore = create<FileState>()(
         }
       },
       
-      addFile: (file) => {
+      setCurrentProject: (projectId) => {
+        set({ currentProjectId: projectId });
+        if (projectId) {
+          get().loadFiles(projectId);
+        } else {
+          set({ files: [], openFiles: [], activeFile: null });
+        }
+      },
+      
+      addFile: (file, projectId) => {
         const language = file.language || detectLanguage(file.name);
         const newFile: FileItem = {
           ...file,
@@ -128,12 +142,15 @@ export const useFileStore = create<FileState>()(
         get().openFile(file.path);
         
         // Auto-save after a short delay
-        setTimeout(() => get().saveFile(file.path), 1000);
+        const currentProject = get().currentProjectId;
+        setTimeout(() => get().saveFile(file.path, currentProject || undefined), 1000);
       },
       
-      saveFile: async (path) => {
+      saveFile: async (path, projectId) => {
         const file = get().files.find(f => f.path === path);
         if (!file || file.isSaved) return;
+        
+        const pid = projectId || get().currentProjectId;
         
         set({ isSaving: true });
         try {
@@ -145,6 +162,7 @@ export const useFileStore = create<FileState>()(
               path: file.path,
               content: file.content,
               isFolder: file.isFolder,
+              projectId: pid,
             })
           });
           
