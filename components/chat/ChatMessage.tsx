@@ -27,7 +27,7 @@ export interface ChatMessageProps {
   content: string;
   thinking?: string;
   toolCalls?: ToolCall[];
-  timestamp: Date;
+  timestamp: Date | string;
   isStreaming?: boolean;
   status?: 'sending' | 'streaming' | 'complete' | 'error';
 }
@@ -736,8 +736,10 @@ function getToolSummary(toolCall: ToolCall): string {
 // HELPER
 // ============================================
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString('en-US', {
+function formatTime(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
   });
