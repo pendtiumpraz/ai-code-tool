@@ -21,6 +21,7 @@ import { PreEngagementForm } from '@/components/security/PreEngagementForm';
 import { CVSSCalculator } from '@/components/security/CVSSCalculator';
 import { SocialEngineeringSimulator } from '@/components/security/SocialEngineeringSimulator';
 import { SecurityToolsPanel } from '@/components/security/SecurityToolsPanel';
+import { ScannerPanel } from '@/components/security/ScannerPanel';
 
 // Workspace sidebar
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar';
@@ -43,6 +44,11 @@ export default function WorkspacePage() {
   const [showEngagementForm, setShowEngagementForm] = useState(false);
   const [securityTool, setSecurityTool] = useState<'scanner' | 'cvss' | 'social-eng' | null>(null);
   const [activeSecurityTool, setActiveSecurityTool] = useState<string | null>(null);
+  const [scanConfig, setScanConfig] = useState<{
+    targetUrl: string;
+    scanType: 'web' | 'api' | 'network';
+    targetType?: string;
+  } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>(['$ Ready for commands...']);
@@ -81,6 +87,12 @@ export default function WorkspacePage() {
     console.log('Engagement data:', data);
     setShowEngagementForm(false);
     // Start security scan with authorization
+    setScanConfig({
+      targetUrl: data.targetUrl,
+      scanType: data.targetType === 'api' ? 'api' : data.targetType === 'network' ? 'network' : 'web',
+      targetType: data.targetType,
+    });
+    setActiveTab('security');
   };
 
   // Terminal command handler
@@ -589,8 +601,17 @@ export default function WorkspacePage() {
 
             {activeTab === 'security' && isCybersecurity && (
               <div className="h-full overflow-hidden">
+                {/* Active Scanner */}
+                {scanConfig && (
+                  <ScannerPanel
+                    config={scanConfig}
+                    onClose={() => setScanConfig(null)}
+                    onComplete={(result) => console.log('Scan complete:', result)}
+                  />
+                )}
+                
                 {/* Security Tools Panel */}
-                {activeSecurityTool && (
+                {!scanConfig && activeSecurityTool && (
                   <SecurityToolsPanel 
                     tool={activeSecurityTool} 
                     onClose={() => {
@@ -601,19 +622,19 @@ export default function WorkspacePage() {
                 )}
                 
                 {/* Legacy security tools */}
-                {!activeSecurityTool && securityTool === 'cvss' && (
+                {!scanConfig && !activeSecurityTool && securityTool === 'cvss' && (
                   <div className="h-full overflow-y-auto p-6">
                     <CVSSCalculator />
                   </div>
                 )}
-                {!activeSecurityTool && securityTool === 'social-eng' && (
+                {!scanConfig && !activeSecurityTool && securityTool === 'social-eng' && (
                   <div className="h-full overflow-y-auto p-6">
                     <SocialEngineeringSimulator />
                   </div>
                 )}
                 
                 {/* Security tools grid */}
-                {!activeSecurityTool && !securityTool && (
+                {!scanConfig && !activeSecurityTool && !securityTool && (
                   <div className="h-full overflow-y-auto p-6">
                     <h2 className="text-lg font-semibold mb-4">Security Tools</h2>
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
