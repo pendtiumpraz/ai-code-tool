@@ -1231,30 +1231,7 @@ function SettingsModal({ workspace, onClose }: { workspace: any; onClose: () => 
           )}
           
           {activeTab === 'appearance' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Theme</label>
-                <select className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg">
-                  <option>Dark (Default)</option>
-                  <option>Light</option>
-                  <option>Dracula</option>
-                  <option>Monokai</option>
-                  <option>Nord</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Accent Color</label>
-                <div className="flex gap-2">
-                  {['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899'].map((color) => (
-                    <button
-                      key={color}
-                      className="w-8 h-8 rounded-full border-2 border-gray-600 hover:border-white"
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <AppearanceSettings />
           )}
         </div>
         
@@ -1404,4 +1381,116 @@ Content here...`,
   };
   
   return templates[ext] || '';
+}
+
+// Appearance Settings Component with localStorage persistence
+function AppearanceSettings() {
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app-theme') || 'dark';
+    }
+    return 'dark';
+  });
+  
+  const [accentColor, setAccentColor] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('app-accent') || '#8B5CF6';
+    }
+    return '#8B5CF6';
+  });
+  
+  const [saved, setSaved] = useState(false);
+
+  const themes = [
+    { id: 'dark', name: 'Dark (Default)' },
+    { id: 'light', name: 'Light' },
+    { id: 'dracula', name: 'Dracula' },
+    { id: 'monokai', name: 'Monokai' },
+    { id: 'nord', name: 'Nord' },
+  ];
+
+  const accentColors = [
+    { color: '#8B5CF6', name: 'Purple' },
+    { color: '#3B82F6', name: 'Blue' },
+    { color: '#10B981', name: 'Green' },
+    { color: '#F59E0B', name: 'Yellow' },
+    { color: '#EF4444', name: 'Red' },
+    { color: '#EC4899', name: 'Pink' },
+  ];
+
+  const applyTheme = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem('app-theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const applyAccent = (newColor: string) => {
+    setAccentColor(newColor);
+    localStorage.setItem('app-accent', newColor);
+    document.documentElement.style.setProperty('--accent-color', newColor);
+    // Also update CSS variables for different shades
+    document.documentElement.style.setProperty('--accent-color-light', newColor + '33');
+    document.documentElement.style.setProperty('--accent-color-dark', newColor + 'cc');
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      {saved && (
+        <div className="p-3 bg-green-500/20 text-green-400 rounded-lg text-sm">
+          ✓ Settings saved!
+        </div>
+      )}
+      
+      <div>
+        <label className="block text-sm font-medium mb-3">Theme</label>
+        <div className="grid grid-cols-2 gap-2">
+          {themes.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => applyTheme(t.id)}
+              className={`px-4 py-3 rounded-lg border text-left transition-all ${
+                theme === t.id 
+                  ? 'border-purple-500 bg-purple-500/20 text-white' 
+                  : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-600'
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <div>
+        <label className="block text-sm font-medium mb-3">Accent Color</label>
+        <div className="flex gap-3">
+          {accentColors.map((c) => (
+            <button
+              key={c.color}
+              onClick={() => applyAccent(c.color)}
+              className={`w-10 h-10 rounded-full transition-all ${
+                accentColor === c.color 
+                  ? 'ring-2 ring-white ring-offset-2 ring-offset-gray-900 scale-110' 
+                  : 'hover:scale-105'
+              }`}
+              style={{ backgroundColor: c.color }}
+              title={c.name}
+            />
+          ))}
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Current: <span style={{ color: accentColor }}>{accentColor}</span>
+        </p>
+      </div>
+
+      <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+        <p className="text-sm text-gray-400">
+          Theme and accent color are saved locally and will persist across sessions.
+        </p>
+      </div>
+    </div>
+  );
 }
