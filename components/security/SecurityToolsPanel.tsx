@@ -28,6 +28,7 @@ export function SecurityToolsPanel({ tool, onClose }: SecurityToolsPanelProps) {
     apiTool: string;
     description: string;
   }> = {
+    // Reconnaissance Tools
     'subdomain-finder': {
       title: 'Subdomain Finder',
       icon: Globe,
@@ -64,6 +65,53 @@ export function SecurityToolsPanel({ tool, onClose }: SecurityToolsPanelProps) {
       apiTool: 'dns-lookup',
       description: 'Query DNS records (A, AAAA, MX, NS, TXT)',
     },
+    'ip-lookup': {
+      title: 'IP Reputation',
+      icon: Shield,
+      color: 'text-orange-400',
+      placeholder: '8.8.8.8 or example.com',
+      api: '/api/security/recon',
+      apiTool: 'ip-lookup',
+      description: 'Check IP geolocation and reputation',
+    },
+    'shodan-search': {
+      title: 'Shodan Search',
+      icon: Globe,
+      color: 'text-red-400',
+      placeholder: 'IP address or search query',
+      api: '/api/security/recon',
+      apiTool: 'shodan-search',
+      description: 'Search Shodan for exposed services',
+    },
+    // Vulnerability Tools
+    'cve-lookup': {
+      title: 'CVE Lookup',
+      icon: Shield,
+      color: 'text-red-400',
+      placeholder: 'CVE-2024-1234 or keyword',
+      api: '/api/security/tools',
+      apiTool: 'cve-lookup',
+      description: 'Search CVE database for vulnerabilities',
+    },
+    'virustotal-scan': {
+      title: 'VirusTotal Scan',
+      icon: Shield,
+      color: 'text-blue-400',
+      placeholder: 'URL, domain, or file hash',
+      api: '/api/security/tools',
+      apiTool: 'virustotal-scan',
+      description: 'Scan URLs/files with VirusTotal',
+    },
+    'security-headers': {
+      title: 'Security Headers',
+      icon: Shield,
+      color: 'text-green-400',
+      placeholder: 'https://example.com',
+      api: '/api/security/tools',
+      apiTool: 'security-headers',
+      description: 'Analyze HTTP security headers',
+    },
+    // Utility Tools
     'hash-generator': {
       title: 'Hash Generator',
       icon: Hash,
@@ -90,6 +138,15 @@ export function SecurityToolsPanel({ tool, onClose }: SecurityToolsPanelProps) {
       api: '/api/security/tools',
       apiTool: 'password-generator',
       description: 'Generate secure random passwords',
+    },
+    'jwt-decoder': {
+      title: 'JWT Decoder',
+      icon: Key,
+      color: 'text-purple-400',
+      placeholder: 'eyJhbGciOiJIUzI1NiIs...',
+      api: '/api/security/tools',
+      apiTool: 'jwt-decoder',
+      description: 'Decode and analyze JWT tokens',
     },
   };
 
@@ -360,9 +417,15 @@ export function SecurityToolsPanel({ tool, onClose }: SecurityToolsPanelProps) {
             {tool === 'port-scanner' && <PortScanResult data={result} />}
             {tool === 'whois-lookup' && <WhoisResult data={result} />}
             {tool === 'dns-lookup' && <DnsResult data={result} />}
+            {tool === 'ip-lookup' && <IpLookupResult data={result} />}
+            {tool === 'shodan-search' && <ShodanResult data={result} />}
+            {tool === 'cve-lookup' && <CveResult data={result} />}
+            {tool === 'virustotal-scan' && <VirusTotalResult data={result} />}
+            {tool === 'security-headers' && <SecurityHeadersResult data={result} />}
             {tool === 'hash-generator' && <HashResult data={result} onCopy={copyToClipboard} />}
             {tool === 'encoder-decoder' && <EncoderResult data={result} onCopy={copyToClipboard} />}
             {tool === 'password-generator' && <PasswordResult data={result} onCopy={copyToClipboard} />}
+            {tool === 'jwt-decoder' && <JwtResult data={result} onCopy={copyToClipboard} />}
           </div>
         )}
 
@@ -645,6 +708,335 @@ function PasswordResult({ data, onCopy }: { data: any; onCopy: (text: string) =>
           </div>
         </div>
       </div>
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// IP Lookup Result
+function IpLookupResult({ data }: { data: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-1">IP Address</p>
+          <p className="font-mono text-lg">{data.ip}</p>
+        </div>
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-1">Hostname</p>
+          <p className="font-mono">{data.hostname || 'N/A'}</p>
+        </div>
+      </div>
+
+      {data.location && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-2">Location</p>
+          <p>{data.location.city}, {data.location.region}, {data.location.country}</p>
+          <p className="text-sm text-gray-500">{data.location.org}</p>
+        </div>
+      )}
+
+      {data.reputation && (
+        <div className={`p-4 rounded-lg ${
+          data.reputation.score > 70 ? 'bg-green-500/10 border border-green-500/20' :
+          data.reputation.score > 40 ? 'bg-yellow-500/10 border border-yellow-500/20' :
+          'bg-red-500/10 border border-red-500/20'
+        }`}>
+          <p className="text-sm text-gray-400 mb-1">Reputation Score</p>
+          <p className="text-2xl font-bold">{data.reputation.score}/100</p>
+          {data.reputation.tags?.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {data.reputation.tags.map((tag: string, i: number) => (
+                <span key={i} className="px-2 py-0.5 bg-gray-700 rounded text-xs">{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// Shodan Result
+function ShodanResult({ data }: { data: any }) {
+  return (
+    <div className="space-y-4">
+      {data.ip && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-1">IP Address</p>
+          <p className="font-mono text-lg">{data.ip}</p>
+          {data.hostnames?.length > 0 && (
+            <p className="text-sm text-gray-500">{data.hostnames.join(', ')}</p>
+          )}
+        </div>
+      )}
+
+      {data.ports?.length > 0 && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-2">Open Ports ({data.ports.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {data.ports.map((port: number) => (
+              <span key={port} className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm font-mono">
+                {port}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.vulns?.length > 0 && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p className="text-sm text-red-400 mb-2">Vulnerabilities ({data.vulns.length})</p>
+          <div className="space-y-1">
+            {data.vulns.slice(0, 10).map((vuln: string) => (
+              <span key={vuln} className="block text-sm font-mono">{vuln}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.error && (
+        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <p className="text-sm text-yellow-400">{data.error}</p>
+          <p className="text-xs text-gray-500 mt-1">Shodan API key may be required for full results.</p>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// CVE Result
+function CveResult({ data }: { data: any }) {
+  return (
+    <div className="space-y-4">
+      {data.cve && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono font-bold text-lg">{data.cve.id}</p>
+            {data.cve.severity && (
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                data.cve.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                data.cve.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                data.cve.severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-green-500/20 text-green-400'
+              }`}>
+                {data.cve.severity}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-300">{data.cve.description}</p>
+          {data.cve.cvss && (
+            <p className="text-sm text-gray-500 mt-2">CVSS Score: {data.cve.cvss}</p>
+          )}
+        </div>
+      )}
+
+      {data.results?.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400">Found {data.results.length} CVEs</p>
+          {data.results.slice(0, 10).map((cve: any) => (
+            <div key={cve.id} className="p-3 bg-gray-800 rounded-lg">
+              <div className="flex items-center justify-between">
+                <p className="font-mono text-sm">{cve.id}</p>
+                {cve.severity && (
+                  <span className={`px-2 py-0.5 rounded text-xs ${
+                    cve.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                    cve.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                    'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {cve.severity}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{cve.description}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// VirusTotal Result
+function VirusTotalResult({ data }: { data: any }) {
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-gray-800 rounded-lg">
+        <p className="text-sm text-gray-400 mb-1">Target</p>
+        <p className="font-mono text-sm break-all">{data.target}</p>
+      </div>
+
+      {data.stats && (
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+            <p className="text-2xl font-bold text-red-400">{data.stats.malicious || 0}</p>
+            <p className="text-xs text-gray-400">Malicious</p>
+          </div>
+          <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-center">
+            <p className="text-2xl font-bold text-yellow-400">{data.stats.suspicious || 0}</p>
+            <p className="text-xs text-gray-400">Suspicious</p>
+          </div>
+          <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg text-center">
+            <p className="text-2xl font-bold text-green-400">{data.stats.harmless || 0}</p>
+            <p className="text-xs text-gray-400">Clean</p>
+          </div>
+        </div>
+      )}
+
+      {data.detections?.length > 0 && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-2">Detections</p>
+          <div className="space-y-1">
+            {data.detections.slice(0, 10).map((d: any, i: number) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span>{d.engine}</span>
+                <span className="text-red-400">{d.result}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.error && (
+        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <p className="text-sm text-yellow-400">{data.error}</p>
+          <p className="text-xs text-gray-500 mt-1">VirusTotal API key may be required.</p>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// Security Headers Result
+function SecurityHeadersResult({ data }: { data: any }) {
+  const getGrade = (score: number) => {
+    if (score >= 90) return { grade: 'A+', color: 'text-green-400', bg: 'bg-green-500/20' };
+    if (score >= 80) return { grade: 'A', color: 'text-green-400', bg: 'bg-green-500/20' };
+    if (score >= 70) return { grade: 'B', color: 'text-blue-400', bg: 'bg-blue-500/20' };
+    if (score >= 60) return { grade: 'C', color: 'text-yellow-400', bg: 'bg-yellow-500/20' };
+    if (score >= 50) return { grade: 'D', color: 'text-orange-400', bg: 'bg-orange-500/20' };
+    return { grade: 'F', color: 'text-red-400', bg: 'bg-red-500/20' };
+  };
+
+  const gradeInfo = data.score ? getGrade(data.score) : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 bg-gray-800 rounded-lg">
+        <p className="text-sm text-gray-400 mb-1">URL</p>
+        <p className="font-mono text-sm break-all">{data.url}</p>
+      </div>
+
+      {gradeInfo && (
+        <div className={`p-4 ${gradeInfo.bg} rounded-lg text-center`}>
+          <p className={`text-4xl font-bold ${gradeInfo.color}`}>{gradeInfo.grade}</p>
+          <p className="text-sm text-gray-400">Score: {data.score}/100</p>
+        </div>
+      )}
+
+      {data.headers && (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400">Security Headers</p>
+          {Object.entries(data.headers).map(([header, info]: [string, any]) => (
+            <div key={header} className={`p-3 rounded-lg ${
+              info.present ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-sm">{header}</span>
+                {info.present ? (
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-red-400" />
+                )}
+              </div>
+              {info.value && (
+                <p className="text-xs text-gray-500 mt-1 truncate">{info.value}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data.recommendations?.length > 0 && (
+        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <p className="text-sm text-yellow-400 mb-2">Recommendations</p>
+          <ul className="text-sm space-y-1">
+            {data.recommendations.map((rec: string, i: number) => (
+              <li key={i} className="text-gray-300">• {rec}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500">{data.timestamp}</p>
+    </div>
+  );
+}
+
+// JWT Decoder Result
+function JwtResult({ data, onCopy }: { data: any; onCopy: (text: string) => void }) {
+  return (
+    <div className="space-y-4">
+      {data.header && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-gray-400">Header</p>
+            <button onClick={() => onCopy(JSON.stringify(data.header, null, 2))} className="p-1 hover:bg-gray-700 rounded">
+              <Copy className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+          <pre className="text-sm font-mono text-blue-400 overflow-x-auto">
+            {JSON.stringify(data.header, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {data.payload && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm text-gray-400">Payload</p>
+            <button onClick={() => onCopy(JSON.stringify(data.payload, null, 2))} className="p-1 hover:bg-gray-700 rounded">
+              <Copy className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+          <pre className="text-sm font-mono text-green-400 overflow-x-auto">
+            {JSON.stringify(data.payload, null, 2)}
+          </pre>
+        </div>
+      )}
+
+      {data.expiry && (
+        <div className={`p-4 rounded-lg ${
+          data.expired ? 'bg-red-500/10 border border-red-500/20' : 'bg-green-500/10 border border-green-500/20'
+        }`}>
+          <p className="text-sm text-gray-400">Expiration</p>
+          <p className={data.expired ? 'text-red-400' : 'text-green-400'}>
+            {data.expired ? 'EXPIRED' : 'Valid'} - {data.expiry}
+          </p>
+        </div>
+      )}
+
+      {data.signature && (
+        <div className="p-4 bg-gray-800 rounded-lg">
+          <p className="text-sm text-gray-400 mb-1">Signature</p>
+          <p className="font-mono text-xs text-purple-400 break-all">{data.signature}</p>
+        </div>
+      )}
+
+      {data.error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p className="text-sm text-red-400">{data.error}</p>
+        </div>
+      )}
 
       <p className="text-xs text-gray-500">{data.timestamp}</p>
     </div>

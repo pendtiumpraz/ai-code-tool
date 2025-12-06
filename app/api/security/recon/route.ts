@@ -44,6 +44,12 @@ export async function POST(request: NextRequest) {
       case 'port-scanner':
         result = await portScan(target, options);
         break;
+      case 'ip-lookup':
+        result = await ipLookup(target);
+        break;
+      case 'shodan-search':
+        result = await shodanSearch(target, options);
+        break;
       default:
         return NextResponse.json({ error: 'Unknown tool' }, { status: 400 });
     }
@@ -273,6 +279,166 @@ async function portScan(target: string, options?: any): Promise<any> {
     timestamp: new Date().toISOString(),
     note: 'This is a basic port scan. For comprehensive scanning, use specialized tools.',
   };
+}
+
+// IP Lookup - Geolocation and reputation
+async function ipLookup(target: string): Promise<any> {
+  const cleanTarget = target.replace(/^(https?:\/\/)/, '').replace(/\/.*$/, '').split(':')[0];
+  
+  // Resolve hostname to IP if needed
+  let ip = cleanTarget;
+  let hostname = null;
+  
+  // Check if it's a domain (not an IP)
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(cleanTarget)) {
+    try {
+      const addresses = await resolve4(cleanTarget);
+      if (addresses && addresses.length > 0) {
+        ip = addresses[0];
+        hostname = cleanTarget;
+      }
+    } catch (e) {
+      // Continue with original target
+    }
+  }
+
+  // Use ip-api.com for geolocation (free, no key required)
+  try {
+    const geoResponse = await fetch(`http://ip-api.com/json/${ip}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    
+    if (geoResponse.ok) {
+      const geoData = await geoResponse.json();
+      
+      if (geoData.status === 'success') {
+        return {
+          ip: geoData.query,
+          hostname: hostname,
+          location: {
+            country: geoData.country,
+            countryCode: geoData.countryCode,
+            region: geoData.regionName,
+            city: geoData.city,
+            zip: geoData.zip,
+            lat: geoData.lat,
+            lon: geoData.lon,
+            timezone: geoData.timezone,
+            org: geoData.org || geoData.isp,
+            as: geoData.as,
+          },
+          reputation: {
+            score: 75, // Default score - would need additional API for real reputation
+            tags: [],
+          },
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
+  } catch (e) {
+    // Continue with fallback
+  }
+
+  return {
+    ip: ip,
+    hostname: hostname,
+    location: null,
+    reputation: null,
+    error: 'Unable to retrieve IP information',
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// Shodan Search
+async function shodanSearch(target: string, options?: any): Promise<any> {
+  const shodanApiKey = process.env.SHODAN_API_KEY;
+  
+  // Clean IP/domain
+  const cleanTarget = target.replace(/^(https?:\/\/)/, '').replace(/\/.*$/, '').split(':')[0];
+  
+  // Check if it's an IP address
+  const isIP = /^\d+\.\d+\.\d+\.\d+$/.test(cleanTarget);
+  
+  if (!shodanApiKey) {
+    // Return mock/limited data without API key
+    return {
+      ip: isIP ? cleanTarget : null,
+      query: target,
+      error: 'Shodan API key not configured. Add SHODAN_API_KEY to environment variables for full results.',
+      note: 'Get a free API key at https://shodan.io',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  try {
+    let url: string;
+    
+    if (isIP) {
+      // Host lookup
+      url = `https://api.shodan.io/shodan/host/${cleanTarget}?key=${shodanApiKey}`;
+    } else {
+      // DNS resolve first, then host lookup
+      const dnsUrl = `https://api.shodan.io/dns/resolve?hostnames=${cleanTarget}&key=${shodanApiKey}`;
+      const dnsResponse = await fetch(dnsUrl, { signal: AbortSignal.timeout(10000) });
+      
+      if (dnsResponse.ok) {
+        const dnsData = await dnsResponse.json();
+        const ip = dnsData[cleanTarget];
+        if (ip) {
+          url = `https://api.shodan.io/shodan/host/${ip}?key=${shodanApiKey}`;
+        } else {
+          return {
+            query: target,
+            error: 'Could not resolve hostname',
+            timestamp: new Date().toISOString(),
+          };
+        }
+      } else {
+        throw new Error('DNS resolution failed');
+      }
+    }
+
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    
+    if (response.ok) {
+      const data = await response.json();
+      
+      return {
+        ip: data.ip_str,
+        hostnames: data.hostnames || [],
+        org: data.org,
+        isp: data.isp,
+        asn: data.asn,
+        country: data.country_name,
+        city: data.city,
+        ports: data.ports || [],
+        vulns: data.vulns || [],
+        services: data.data?.slice(0, 10).map((s: any) => ({
+          port: s.port,
+          protocol: s.transport,
+          product: s.product,
+          version: s.version,
+          banner: s.data?.substring(0, 200),
+        })) || [],
+        lastUpdate: data.last_update,
+        timestamp: new Date().toISOString(),
+      };
+    } else if (response.status === 404) {
+      return {
+        ip: cleanTarget,
+        error: 'No information available for this host',
+        timestamp: new Date().toISOString(),
+      };
+    } else {
+      throw new Error(`Shodan API error: ${response.status}`);
+    }
+  } catch (e: any) {
+    return {
+      query: target,
+      error: e.message || 'Shodan lookup failed',
+      timestamp: new Date().toISOString(),
+    };
+  }
 }
 
 // GET endpoint for info

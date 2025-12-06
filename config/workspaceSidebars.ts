@@ -45,6 +45,8 @@ export const cybersecuritySidebar: WorkspaceSidebarConfig = {
         { id: 'port-scan', label: 'Port Scanner', icon: Network, action: 'port-scanner' },
         { id: 'whois', label: 'WHOIS Lookup', icon: Search, action: 'whois-lookup' },
         { id: 'dns', label: 'DNS Lookup', icon: Database, action: 'dns-lookup' },
+        { id: 'ip-lookup', label: 'IP Reputation', icon: Shield, action: 'ip-lookup' },
+        { id: 'shodan', label: 'Shodan Search', icon: Globe, action: 'shodan-search' },
       ]
     },
     {
@@ -54,6 +56,8 @@ export const cybersecuritySidebar: WorkspaceSidebarConfig = {
         { id: 'web-scan', label: 'Web Scanner', icon: Shield, action: 'web-scanner' },
         { id: 'api-scan', label: 'API Scanner', icon: Zap, action: 'api-scanner' },
         { id: 'network-scan', label: 'Network Scanner', icon: Network, action: 'network-scanner' },
+        { id: 'cve-lookup', label: 'CVE Lookup', icon: Bug, action: 'cve-lookup' },
+        { id: 'virustotal', label: 'VirusTotal Scan', icon: Shield, action: 'virustotal-scan' },
       ]
     },
     {
@@ -63,6 +67,9 @@ export const cybersecuritySidebar: WorkspaceSidebarConfig = {
         { id: 'cvss', label: 'CVSS Calculator', icon: Calculator, action: 'cvss-calculator' },
         { id: 'hash', label: 'Hash Generator', icon: Hash, action: 'hash-generator' },
         { id: 'encoder', label: 'Encoder/Decoder', icon: Key, action: 'encoder-decoder' },
+        { id: 'password', label: 'Password Generator', icon: Lock, action: 'password-generator' },
+        { id: 'jwt', label: 'JWT Decoder', icon: Key, action: 'jwt-decoder' },
+        { id: 'headers', label: 'Security Headers', icon: Shield, action: 'security-headers' },
       ]
     },
     {
