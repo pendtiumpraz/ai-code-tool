@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    const transformedLicenses = licenses.map(license => ({
+    const transformedLicenses = licenses.map((license: typeof licenses[number]) => ({
       id: license.id,
       code: license.code,
       plan: license.plan.name,
