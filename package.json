@@ -17,6 +17,7 @@
     "@auth/prisma-adapter": "^2.0.0",
     "@monaco-editor/react": "^4.6.0",
     "@prisma/client": "^5.14.0",
+    "@prisma/extension-accelerate": "^3.0.1",
     "@webcontainer/api": "^1.1.9",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.0",
