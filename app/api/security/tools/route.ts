@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getUserSecurityKeys } from '@/lib/getUserSecurityKeys';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
     if (!tool) {
       return NextResponse.json({ error: 'Tool is required' }, { status: 400 });
     }
+
+    // Get user's API keys from database
+    const userKeys = await getUserSecurityKeys(session.user.email);
 
     let result: any;
 
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
         result = await checkSecurityHeaders(input);
         break;
       case 'virustotal-scan':
-        result = await virusTotalScan(input, options);
+        result = await virusTotalScan(input, options, userKeys.virusTotalKey);
         break;
       default:
         return NextResponse.json({ error: 'Unknown tool' }, { status: 400 });
@@ -548,17 +552,18 @@ async function checkSecurityHeaders(url: string): Promise<any> {
 }
 
 // VirusTotal Scan
-async function virusTotalScan(input: string, options?: any): Promise<any> {
+async function virusTotalScan(input: string, options?: any, userApiKey?: string | null): Promise<any> {
   if (!input) {
     return { error: 'URL, domain, or hash is required' };
   }
 
-  const vtApiKey = process.env.VIRUSTOTAL_API_KEY;
+  // Use user's API key from database, fallback to environment variable
+  const vtApiKey = userApiKey || process.env.VIRUSTOTAL_API_KEY;
   
   if (!vtApiKey) {
     return {
       target: input,
-      error: 'VirusTotal API key not configured. Add VIRUSTOTAL_API_KEY to environment variables.',
+      error: 'VirusTotal API key not configured. Go to Settings > API Keys to add your VirusTotal API key.',
       note: 'Get a free API key at https://www.virustotal.com/gui/join-us',
       timestamp: new Date().toISOString(),
     };

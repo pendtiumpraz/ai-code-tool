@@ -972,6 +972,64 @@ function SecurityToolCard({
 
 function SettingsModal({ workspace, onClose }: { workspace: any; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState('general');
+  const [apiKeys, setApiKeys] = useState({ shodan: '', virusTotal: '' });
+  const [apiKeyStatus, setApiKeyStatus] = useState<any>({ shodan: null, virusTotal: null });
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [keyMessage, setKeyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Fetch current API key status on mount
+  useEffect(() => {
+    if (activeTab === 'api-keys') {
+      fetch('/api/user/security-keys')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            setApiKeyStatus(data.keys);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [activeTab]);
+
+  const saveApiKeys = async () => {
+    setSavingKeys(true);
+    setKeyMessage(null);
+    try {
+      const res = await fetch('/api/user/security-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shodanKey: apiKeys.shodan || undefined,
+          virusTotalKey: apiKeys.virusTotal || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setKeyMessage({ type: 'success', text: 'API keys saved successfully!' });
+        setApiKeyStatus(data.keys);
+        setApiKeys({ shodan: '', virusTotal: '' });
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      setKeyMessage({ type: 'error', text: err.message || 'Failed to save keys' });
+    } finally {
+      setSavingKeys(false);
+    }
+  };
+
+  const deleteApiKey = async (keyType: 'shodan' | 'virusTotal') => {
+    try {
+      const res = await fetch(`/api/user/security-keys?key=${keyType}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setApiKeyStatus((prev: any) => ({ ...prev, [keyType]: { configured: false } }));
+        setKeyMessage({ type: 'success', text: `${keyType} key removed` });
+      }
+    } catch (err: any) {
+      setKeyMessage({ type: 'error', text: err.message });
+    }
+  };
   
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -985,8 +1043,8 @@ function SettingsModal({ workspace, onClose }: { workspace: any; onClose: () => 
         </div>
         
         {/* Tabs */}
-        <div className="flex border-b border-gray-800">
-          {['general', 'editor', 'terminal', 'appearance'].map((tab) => (
+        <div className="flex border-b border-gray-800 overflow-x-auto">
+          {['general', 'api-keys', 'editor', 'terminal', 'appearance'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1026,6 +1084,105 @@ function SettingsModal({ workspace, onClose }: { workspace: any; onClose: () => 
               <div className="flex items-center justify-between">
                 <span>Auto-save</span>
                 <input type="checkbox" defaultChecked className="w-5 h-5" />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'api-keys' && (
+            <div className="space-y-6">
+              <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                <p className="text-sm text-gray-400">
+                  Configure your API keys for security tools. Keys are encrypted and stored securely per user.
+                </p>
+              </div>
+
+              {keyMessage && (
+                <div className={`p-3 rounded-lg ${keyMessage.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {keyMessage.text}
+                </div>
+              )}
+
+              {/* Shodan API Key */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium">Shodan API Key</label>
+                  {apiKeyStatus.shodan?.configured && (
+                    <span className="text-xs text-green-400 flex items-center gap-1">
+                      ✓ Configured: {apiKeyStatus.shodan.masked}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="password"
+                    value={apiKeys.shodan}
+                    onChange={(e) => setApiKeys(prev => ({ ...prev, shodan: e.target.value }))}
+                    placeholder={apiKeyStatus.shodan?.configured ? "Enter new key to update" : "Enter your Shodan API key"}
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg"
+                  />
+                  {apiKeyStatus.shodan?.configured && (
+                    <button 
+                      onClick={() => deleteApiKey('shodan')}
+                      className="px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-sm"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Get your API key at <a href="https://shodan.io" target="_blank" className="text-purple-400 hover:underline">shodan.io</a>
+                </p>
+              </div>
+
+              {/* VirusTotal API Key */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium">VirusTotal API Key</label>
+                  {apiKeyStatus.virusTotal?.configured && (
+                    <span className="text-xs text-green-400 flex items-center gap-1">
+                      ✓ Configured: {apiKeyStatus.virusTotal.masked}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input 
+                    type="password"
+                    value={apiKeys.virusTotal}
+                    onChange={(e) => setApiKeys(prev => ({ ...prev, virusTotal: e.target.value }))}
+                    placeholder={apiKeyStatus.virusTotal?.configured ? "Enter new key to update" : "Enter your VirusTotal API key"}
+                    className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg"
+                  />
+                  {apiKeyStatus.virusTotal?.configured && (
+                    <button 
+                      onClick={() => deleteApiKey('virusTotal')}
+                      className="px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-sm"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">
+                  Get your API key at <a href="https://www.virustotal.com/gui/join-us" target="_blank" className="text-purple-400 hover:underline">virustotal.com</a>
+                </p>
+              </div>
+
+              {/* Save Button */}
+              {(apiKeys.shodan || apiKeys.virusTotal) && (
+                <button 
+                  onClick={saveApiKeys}
+                  disabled={savingKeys}
+                  className="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 rounded-lg font-medium"
+                >
+                  {savingKeys ? 'Saving...' : 'Save API Keys'}
+                </button>
+              )}
+
+              {/* Free Tools Info */}
+              <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                <p className="text-sm text-blue-400 font-medium mb-2">Tools that work without API keys:</p>
+                <p className="text-xs text-gray-400">
+                  IP Lookup, CVE Lookup, DNS Lookup, WHOIS, Port Scanner, Security Headers, Hash Generator, Encoder/Decoder, JWT Decoder, Password Generator
+                </p>
               </div>
             </div>
           )}

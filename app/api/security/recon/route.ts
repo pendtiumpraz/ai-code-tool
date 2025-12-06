@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getUserSecurityKeys } from '@/lib/getUserSecurityKeys';
 import dns from 'dns';
 import { promisify } from 'util';
 
@@ -18,7 +19,7 @@ const resolveCname = promisify(dns.resolveCname);
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -28,6 +29,9 @@ export async function POST(request: NextRequest) {
     if (!tool || !target) {
       return NextResponse.json({ error: 'Tool and target are required' }, { status: 400 });
     }
+
+    // Get user's API keys from database
+    const userKeys = await getUserSecurityKeys(session.user.email);
 
     let result: any;
 
@@ -48,7 +52,7 @@ export async function POST(request: NextRequest) {
         result = await ipLookup(target);
         break;
       case 'shodan-search':
-        result = await shodanSearch(target, options);
+        result = await shodanSearch(target, options, userKeys.shodanKey);
         break;
       default:
         return NextResponse.json({ error: 'Unknown tool' }, { status: 400 });
@@ -350,8 +354,9 @@ async function ipLookup(target: string): Promise<any> {
 }
 
 // Shodan Search
-async function shodanSearch(target: string, options?: any): Promise<any> {
-  const shodanApiKey = process.env.SHODAN_API_KEY;
+async function shodanSearch(target: string, options?: any, userApiKey?: string | null): Promise<any> {
+  // Use user's API key from database, fallback to environment variable
+  const shodanApiKey = userApiKey || process.env.SHODAN_API_KEY;
   
   // Clean IP/domain
   const cleanTarget = target.replace(/^(https?:\/\/)/, '').replace(/\/.*$/, '').split(':')[0];
@@ -364,7 +369,7 @@ async function shodanSearch(target: string, options?: any): Promise<any> {
     return {
       ip: isIP ? cleanTarget : null,
       query: target,
-      error: 'Shodan API key not configured. Add SHODAN_API_KEY to environment variables for full results.',
+      error: 'Shodan API key not configured. Go to Settings > API Keys to add your Shodan API key.',
       note: 'Get a free API key at https://shodan.io',
       timestamp: new Date().toISOString(),
     };
