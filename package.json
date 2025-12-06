@@ -16,7 +16,6 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.0.0",
     "@monaco-editor/react": "^4.6.0",
-    "@next/swc-win32-x64-msvc": "^16.0.7",
     "@prisma/client": "^5.14.0",
     "@webcontainer/api": "^1.1.9",
     "bcryptjs": "^2.4.3",
