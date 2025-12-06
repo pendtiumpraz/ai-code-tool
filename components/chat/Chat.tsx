@@ -58,6 +58,7 @@ export function Chat() {
   
   // Focus input when prompt is inserted from menu
   useEffect(() => {
+    console.log('Chat inputValue changed:', inputValue);
     if (inputValue && inputRef.current) {
       inputRef.current.focus();
     }
