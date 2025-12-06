@@ -6,9 +6,10 @@ import { prisma } from '@/lib/prisma';
 // GET - Get single chat session
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -16,7 +17,7 @@ export async function GET(
 
     const chatSession = await prisma.chatHistory.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id, // Ensure user isolation
       }
     });
@@ -46,9 +47,10 @@ export async function GET(
 // PUT - Update chat session (add messages, update title)
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -57,7 +59,7 @@ export async function PUT(
     // Verify ownership
     const existing = await prisma.chatHistory.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
       }
     });
@@ -89,7 +91,7 @@ export async function PUT(
     }
 
     const updated = await prisma.chatHistory.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updateData,
     });
 
@@ -112,9 +114,10 @@ export async function PUT(
 // DELETE - Delete chat session
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -123,7 +126,7 @@ export async function DELETE(
     // Verify ownership before delete
     const existing = await prisma.chatHistory.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
       }
     });
@@ -133,7 +136,7 @@ export async function DELETE(
     }
 
     await prisma.chatHistory.delete({
-      where: { id: params.id }
+      where: { id: id }
     });
 
     return NextResponse.json({ success: true });

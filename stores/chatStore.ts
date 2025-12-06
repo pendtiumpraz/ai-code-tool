@@ -113,10 +113,20 @@ export const useChatStore = create<ChatState>()(
           const res = await fetch(`/api/chat/sessions?${params}`);
           if (res.ok) {
             const data = await res.json();
-            set({ sessions: data.sessions || [] });
+            // Merge server sessions with local ones
+            const serverSessions = data.sessions || [];
+            set(state => {
+              // Keep local sessions that aren't on server yet
+              const serverIds = new Set(serverSessions.map((s: any) => s.id));
+              const localOnly = state.sessions.filter(s => !serverIds.has(s.id));
+              return { 
+                sessions: [...serverSessions, ...localOnly].slice(0, 50)
+              };
+            });
           }
+          // If API fails, keep localStorage sessions (handled by persist middleware)
         } catch (error) {
-          console.error('Failed to load sessions:', error);
+          console.warn('Failed to load sessions from server, using local:', error);
         } finally {
           set({ isLoadingSessions: false });
         }
@@ -124,6 +134,26 @@ export const useChatStore = create<ChatState>()(
       
       createSession: async (workspace, title) => {
         const ws = workspace || get().currentWorkspace;
+        
+        // Always create local session first (works offline/unauthenticated)
+        const localId = nanoid();
+        const newSession: ChatSession = {
+          id: localId,
+          title: title || 'New Chat',
+          workspace: ws,
+          messages: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        
+        set(state => ({
+          sessions: [newSession, ...state.sessions],
+          currentSessionId: localId,
+          messages: [],
+          currentWorkspace: ws,
+        }));
+        
+        // Try to sync with server (non-blocking)
         try {
           const res = await fetch('/api/chat/sessions', {
             method: 'POST',
@@ -136,35 +166,20 @@ export const useChatStore = create<ChatState>()(
           });
           
           if (res.ok) {
-            const session = await res.json();
+            const serverSession = await res.json();
+            // Update local session with server ID
             set(state => ({
-              sessions: [session, ...state.sessions],
-              currentSessionId: session.id,
-              messages: [],
-              currentWorkspace: ws,
+              sessions: state.sessions.map(s => 
+                s.id === localId ? { ...s, id: serverSession.id } : s
+              ),
+              currentSessionId: serverSession.id,
             }));
-            return session.id;
+            return serverSession.id;
           }
         } catch (error) {
-          console.error('Failed to create session:', error);
+          console.warn('Failed to sync session to server:', error);
         }
         
-        // Fallback: create local session
-        const localId = nanoid();
-        const newSession: ChatSession = {
-          id: localId,
-          title: title || 'New Chat',
-          workspace: ws,
-          messages: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        set(state => ({
-          sessions: [newSession, ...state.sessions],
-          currentSessionId: localId,
-          messages: [],
-          currentWorkspace: ws,
-        }));
         return localId;
       },
       
@@ -239,9 +254,20 @@ export const useChatStore = create<ChatState>()(
         const { currentSessionId, messages, currentWorkspace } = get();
         if (!currentSessionId || messages.length === 0) return;
         
+        const title = generateTitle(messages);
+        
+        // Always update local session first (works offline)
+        set(state => ({
+          sessions: state.sessions.map(s => 
+            s.id === currentSessionId 
+              ? { ...s, title, messages: [...messages], updatedAt: new Date() }
+              : s
+          )
+        }));
+        
+        // Try to sync with server (non-blocking)
         set({ isSaving: true });
         try {
-          const title = generateTitle(messages);
           await fetch(`/api/chat/sessions/${currentSessionId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -254,17 +280,8 @@ export const useChatStore = create<ChatState>()(
               title 
             })
           });
-          
-          // Update local session
-          set(state => ({
-            sessions: state.sessions.map(s => 
-              s.id === currentSessionId 
-                ? { ...s, title, messages, updatedAt: new Date() }
-                : s
-            )
-          }));
         } catch (error) {
-          console.error('Failed to save session:', error);
+          console.warn('Failed to sync session to server:', error);
         } finally {
           set({ isSaving: false });
         }
@@ -542,10 +559,23 @@ export const useChatStore = create<ChatState>()(
     {
       name: 'chat-store',
       partialize: (state) => ({
-        sessions: state.sessions.slice(0, 10), // Keep last 10 sessions in localStorage
+        sessions: state.sessions.slice(0, 20).map(s => ({
+          ...s,
+          messages: s.messages || [],
+        })),
         currentSessionId: state.currentSessionId,
         currentWorkspace: state.currentWorkspace,
+        messages: state.messages, // Persist current messages
       }),
+      onRehydrateStorage: () => (state) => {
+        // Restore current session messages after rehydration
+        if (state && state.currentSessionId) {
+          const session = state.sessions.find(s => s.id === state.currentSessionId);
+          if (session?.messages?.length && !state.messages?.length) {
+            state.messages = session.messages;
+          }
+        }
+      },
     }
   )
 );
