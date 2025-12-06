@@ -47,6 +47,9 @@ interface ChatState {
   currentToolCall: ToolCall | null;
   abortController: AbortController | null;
   
+  // Input state (for prompt templating)
+  inputValue: string;
+  
   // Loading states
   isLoadingSessions: boolean;
   isSaving: boolean;
@@ -58,6 +61,9 @@ interface ChatState {
   deleteSession: (sessionId: string) => Promise<void>;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   saveCurrentSession: () => Promise<void>;
+  
+  // Actions - Input
+  setInputValue: (value: string) => void;
   
   // Actions - Messages
   setWorkspace: (workspace: string) => void;
@@ -96,6 +102,7 @@ export const useChatStore = create<ChatState>()(
       currentThinking: '',
       currentToolCall: null,
       abortController: null,
+      inputValue: '',
       isLoadingSessions: false,
       isSaving: false,
       
@@ -285,6 +292,14 @@ export const useChatStore = create<ChatState>()(
         } finally {
           set({ isSaving: false });
         }
+      },
+      
+      // ============================================
+      // INPUT MANAGEMENT
+      // ============================================
+      
+      setInputValue: (value) => {
+        set({ inputValue: value });
       },
       
       // ============================================

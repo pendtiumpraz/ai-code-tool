@@ -13,7 +13,6 @@ import { useChatStore } from '@/stores/chatStore';
 type ChatSize = 'normal' | 'expanded' | 'maximized';
 
 export function Chat() {
-  const [input, setInput] = useState('');
   const [chatSize, setChatSize] = useState<ChatSize>('normal');
   const [showAISettings, setShowAISettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -45,9 +44,11 @@ export function Chat() {
     aiStatus,
     currentThinking,
     currentToolCall,
+    inputValue,
     addMessage,
     sendMessage,
     stopGeneration,
+    setInputValue,
   } = useChatStore();
   
   const scrollToBottom = () => {
@@ -60,10 +61,10 @@ export function Chat() {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+    if (!inputValue.trim() || isStreaming) return;
     
-    const userMessage = input.trim();
-    setInput('');
+    const userMessage = inputValue.trim();
+    setInputValue('');
     
     await sendMessage(userMessage);
   };
@@ -189,8 +190,8 @@ export function Chat() {
           <div className="relative">
             <textarea
               ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask AI to help you..."
               className="w-full px-4 py-3 pr-24 bg-gray-800 border border-gray-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -219,7 +220,7 @@ export function Chat() {
               ) : (
                 <button
                   type="submit"
-                  disabled={!input.trim()}
+                  disabled={!inputValue.trim()}
                   className="p-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                   title="Send message"
                 >

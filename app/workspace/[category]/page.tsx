@@ -785,6 +785,8 @@ export default function WorkspacePage() {
 
 function WorkspaceMenu({ workspace, onAction }: { workspace: any; onAction: (action: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
+  const setInputValue = useChatStore((state) => state.setInputValue);
 
   const defaultMenu = [
     { id: 'file', label: 'File', submenu: [
@@ -817,10 +819,56 @@ function WorkspaceMenu({ workspace, onAction }: { workspace: any; onAction: (act
 
   const menuItems = workspace.menu?.length > 0 ? workspace.menu : defaultMenu;
 
+  const handleMenuItemClick = (item: any) => {
+    if (item.prompt) {
+      // Insert prompt into chat input
+      setInputValue(item.prompt);
+      setOpen(false);
+      setActiveSubmenu(null);
+    } else if (item.submenu) {
+      // Toggle submenu
+      setActiveSubmenu(activeSubmenu === item.id ? null : item.id);
+    } else {
+      // Call action handler
+      onAction(item.id);
+      setOpen(false);
+      setActiveSubmenu(null);
+    }
+  };
+
+  const renderMenuItem = (item: any, depth: number = 0) => {
+    const hasSubmenu = item.submenu && item.submenu.length > 0;
+    const isActive = activeSubmenu === item.id;
+    
+    return (
+      <div key={item.id}>
+        <button
+          className={`w-full px-4 py-2 text-sm text-left hover:bg-gray-700 transition-colors flex items-center justify-between ${
+            depth > 0 ? 'pl-6' : ''
+          }`}
+          onClick={() => handleMenuItemClick(item)}
+        >
+          <span>{item.label}</span>
+          {hasSubmenu && (
+            <ChevronDown className={`w-3 h-3 transition-transform ${isActive ? 'rotate-180' : ''}`} />
+          )}
+        </button>
+        {hasSubmenu && isActive && (
+          <div className="bg-gray-900/50">
+            {item.submenu.map((sub: any) => renderMenuItem(sub, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          setOpen(!open);
+          setActiveSubmenu(null);
+        }}
         className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm"
       >
         Menu
@@ -829,25 +877,14 @@ function WorkspaceMenu({ workspace, onAction }: { workspace: any; onAction: (act
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-1 w-64 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden">
-            {menuItems.slice(0, 5).map((item: any) => (
+          <div className="fixed inset-0 z-40" onClick={() => { setOpen(false); setActiveSubmenu(null); }} />
+          <div className="absolute right-0 top-full mt-1 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
+            {menuItems.map((item: any) => (
               <div key={item.id} className="border-b border-gray-700 last:border-0">
                 <div className="px-3 py-2 text-sm font-medium text-gray-400">
                   {item.label}
                 </div>
-                {item.submenu?.slice(0, 4).map((sub: any) => (
-                  <button
-                    key={sub.id}
-                    className="w-full px-4 py-2 text-sm text-left hover:bg-gray-700 transition-colors"
-                    onClick={() => {
-                      onAction(sub.id);
-                      setOpen(false);
-                    }}
-                  >
-                    {sub.label}
-                  </button>
-                ))}
+                {item.submenu?.map((sub: any) => renderMenuItem(sub))}
               </div>
             ))}
           </div>
