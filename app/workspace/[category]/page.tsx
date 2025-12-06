@@ -19,6 +19,7 @@ const Chat = dynamic(() => import('@/components/chat/Chat').then(m => m.Chat), {
 import { PreEngagementForm } from '@/components/security/PreEngagementForm';
 import { CVSSCalculator } from '@/components/security/CVSSCalculator';
 import { SocialEngineeringSimulator } from '@/components/security/SocialEngineeringSimulator';
+import { SecurityToolsPanel } from '@/components/security/SecurityToolsPanel';
 
 // Workspace sidebar
 import { WorkspaceSidebar } from '@/components/workspace/WorkspaceSidebar';
@@ -39,6 +40,7 @@ export default function WorkspacePage() {
   const [activeSidebarItem, setActiveSidebarItem] = useState('dashboard');
   const [showEngagementForm, setShowEngagementForm] = useState(false);
   const [securityTool, setSecurityTool] = useState<'scanner' | 'cvss' | 'social-eng' | null>(null);
+  const [activeSecurityTool, setActiveSecurityTool] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>(['$ Ready for commands...']);
@@ -307,12 +309,15 @@ export default function WorkspacePage() {
             switch (action) {
               case 'editor':
                 setActiveTab('editor');
+                setActiveSecurityTool(null);
                 break;
               case 'terminal':
                 setActiveTab('terminal');
+                setActiveSecurityTool(null);
                 break;
               case 'preview':
                 setActiveTab('preview');
+                setActiveSecurityTool(null);
                 break;
               case 'settings':
                 setShowSettings(true);
@@ -325,11 +330,26 @@ export default function WorkspacePage() {
               case 'cvss-calculator':
                 setSecurityTool('cvss');
                 setActiveTab('security');
+                setActiveSecurityTool(null);
                 break;
               case 'phishing-sim':
               case 'awareness':
                 setSecurityTool('social-eng');
                 setActiveTab('security');
+                setActiveSecurityTool(null);
+                break;
+              // Reconnaissance tools
+              case 'subdomain-finder':
+              case 'port-scanner':
+              case 'whois-lookup':
+              case 'dns-lookup':
+              // Security tools
+              case 'hash-generator':
+              case 'encoder-decoder':
+              case 'password-generator':
+                setActiveSecurityTool(action);
+                setActiveTab('security');
+                setSecurityTool(null);
                 break;
               default:
                 console.log('Sidebar action:', action);
@@ -566,29 +586,96 @@ export default function WorkspacePage() {
             )}
 
             {activeTab === 'security' && isCybersecurity && (
-              <div className="h-full overflow-y-auto p-6">
-                {securityTool === 'cvss' && <CVSSCalculator />}
-                {securityTool === 'social-eng' && <SocialEngineeringSimulator />}
-                {!securityTool && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <SecurityToolCard
-                      title="Web Scanner"
-                      description="Scan websites for vulnerabilities"
-                      icon="🔍"
-                      onClick={() => setShowEngagementForm(true)}
-                    />
-                    <SecurityToolCard
-                      title="CVSS Calculator"
-                      description="Calculate vulnerability severity"
-                      icon="🧮"
-                      onClick={() => setSecurityTool('cvss')}
-                    />
-                    <SecurityToolCard
-                      title="Social Engineering"
-                      description="Phishing & awareness simulations"
-                      icon="🎭"
-                      onClick={() => setSecurityTool('social-eng')}
-                    />
+              <div className="h-full overflow-hidden">
+                {/* Security Tools Panel */}
+                {activeSecurityTool && (
+                  <SecurityToolsPanel 
+                    tool={activeSecurityTool} 
+                    onClose={() => {
+                      setActiveSecurityTool(null);
+                      setActiveSidebarItem('dashboard');
+                    }} 
+                  />
+                )}
+                
+                {/* Legacy security tools */}
+                {!activeSecurityTool && securityTool === 'cvss' && (
+                  <div className="h-full overflow-y-auto p-6">
+                    <CVSSCalculator />
+                  </div>
+                )}
+                {!activeSecurityTool && securityTool === 'social-eng' && (
+                  <div className="h-full overflow-y-auto p-6">
+                    <SocialEngineeringSimulator />
+                  </div>
+                )}
+                
+                {/* Security tools grid */}
+                {!activeSecurityTool && !securityTool && (
+                  <div className="h-full overflow-y-auto p-6">
+                    <h2 className="text-lg font-semibold mb-4">Security Tools</h2>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                      <SecurityToolCard
+                        title="Web Scanner"
+                        description="Scan websites for vulnerabilities"
+                        icon="🔍"
+                        onClick={() => setShowEngagementForm(true)}
+                      />
+                      <SecurityToolCard
+                        title="Subdomain Finder"
+                        description="Find subdomains via DNS"
+                        icon="🌐"
+                        onClick={() => setActiveSecurityTool('subdomain-finder')}
+                      />
+                      <SecurityToolCard
+                        title="Port Scanner"
+                        description="Scan common ports"
+                        icon="🔌"
+                        onClick={() => setActiveSecurityTool('port-scanner')}
+                      />
+                      <SecurityToolCard
+                        title="WHOIS Lookup"
+                        description="Get domain registration info"
+                        icon="📋"
+                        onClick={() => setActiveSecurityTool('whois-lookup')}
+                      />
+                      <SecurityToolCard
+                        title="DNS Lookup"
+                        description="Query DNS records"
+                        icon="🗂️"
+                        onClick={() => setActiveSecurityTool('dns-lookup')}
+                      />
+                      <SecurityToolCard
+                        title="Hash Generator"
+                        description="Generate MD5, SHA hashes"
+                        icon="#️⃣"
+                        onClick={() => setActiveSecurityTool('hash-generator')}
+                      />
+                      <SecurityToolCard
+                        title="Encoder/Decoder"
+                        description="Base64, URL, HTML encoding"
+                        icon="🔐"
+                        onClick={() => setActiveSecurityTool('encoder-decoder')}
+                      />
+                      <SecurityToolCard
+                        title="Password Generator"
+                        description="Generate secure passwords"
+                        icon="🔑"
+                        onClick={() => setActiveSecurityTool('password-generator')}
+                      />
+                      <SecurityToolCard
+                        title="CVSS Calculator"
+                        description="Calculate vulnerability severity"
+                        icon="🧮"
+                        onClick={() => setSecurityTool('cvss')}
+                      />
+                      <SecurityToolCard
+                        title="Social Engineering"
+                        description="Phishing & awareness simulations"
+                        icon="🎭"
+                        onClick={() => setSecurityTool('social-eng')}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
