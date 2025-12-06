@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Settings, Save, Upload, Globe, Mail, Bell, 
   Database, Cpu, Shield, Palette, Code, Zap,
@@ -15,67 +15,99 @@ interface SystemInfo {
   storage: { used: number; total: number };
   uptime: string;
   lastBackup: string;
+  stats: { users: number; projects: number };
 }
+
+const defaultSettings = {
+  general: {
+    appName: 'AI Code Studio',
+    appUrl: 'https://aicodestudio.com',
+    supportEmail: 'support@aicodestudio.com',
+    logo: '/logo.png',
+    favicon: '/favicon.ico',
+    maintenanceMode: false,
+    allowRegistration: true,
+    requireEmailVerification: true,
+  },
+  email: {
+    provider: 'smtp',
+    smtpHost: 'smtp.gmail.com',
+    smtpPort: '587',
+    smtpUser: '',
+    smtpPassword: '',
+    fromName: 'AI Code Studio',
+    fromEmail: 'noreply@aicodestudio.com',
+  },
+  ai: {
+    defaultModel: 'glm-4-plus',
+    maxTokensPerRequest: 4096,
+    enableCodeExecution: true,
+    enableToolCalling: true,
+    rateLimit: 100,
+    rateLimitWindow: 60,
+  },
+  advanced: {
+    debugMode: false,
+    logLevel: 'info',
+    cacheEnabled: true,
+    cacheTTL: 3600,
+    corsOrigins: '*',
+    maxUploadSize: 10,
+  },
+};
 
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<'general' | 'email' | 'ai' | 'advanced' | 'system'>('general');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  const [settings, setSettings] = useState({
-    general: {
-      appName: 'AI Code Studio',
-      appUrl: 'https://aicodestudio.com',
-      supportEmail: 'support@aicodestudio.com',
-      logo: '/logo.png',
-      favicon: '/favicon.ico',
-      maintenanceMode: false,
-      allowRegistration: true,
-      requireEmailVerification: true,
-    },
-    email: {
-      provider: 'smtp',
-      smtpHost: 'smtp.gmail.com',
-      smtpPort: '587',
-      smtpUser: '',
-      smtpPassword: '',
-      fromName: 'AI Code Studio',
-      fromEmail: 'noreply@aicodestudio.com',
-    },
-    ai: {
-      defaultModel: 'glm-4-plus',
-      maxTokensPerRequest: 4096,
-      enableCodeExecution: true,
-      enableToolCalling: true,
-      rateLimit: 100,
-      rateLimitWindow: 60,
-    },
-    advanced: {
-      debugMode: false,
-      logLevel: 'info',
-      cacheEnabled: true,
-      cacheTTL: 3600,
-      corsOrigins: '*',
-      maxUploadSize: 10,
-    },
-  });
-
-  const systemInfo: SystemInfo = {
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState(defaultSettings);
+  const [systemInfo, setSystemInfo] = useState<SystemInfo>({
     version: '1.0.0',
     nodeVersion: '20.10.0',
     database: 'PostgreSQL 15',
-    storage: { used: 45.6, total: 100 },
-    uptime: '15 days, 4 hours',
-    lastBackup: '2024-02-28 03:00:00',
+    storage: { used: 0, total: 100 },
+    uptime: '0',
+    lastBackup: '-',
+    stats: { users: 0, projects: 0 },
+  });
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/admin/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) setSettings(data.settings);
+        if (data.systemInfo) setSystemInfo(data.systemInfo);
+      }
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: activeTab, settings: settings[activeTab as keyof typeof settings] }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateSetting = (category: string, key: string, value: any) => {
@@ -87,6 +119,14 @@ export default function AdminSettingsPage() {
       },
     }));
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div>

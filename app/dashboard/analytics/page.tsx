@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   BarChart3, TrendingUp, Zap, Clock, FileText,
   MessageSquare, FolderOpen, Calendar, ArrowUpRight,
@@ -14,43 +14,79 @@ interface UsageData {
   files: number;
 }
 
+interface Stats {
+  tokensUsed: number;
+  tokensLimit: number;
+  messagesCount: number;
+  filesGenerated: number;
+  projectsCount: number;
+  hoursActive: number;
+  avgResponseTime: number;
+  tokensGrowth: number;
+  messagesGrowth: number;
+}
+
+interface WorkspaceUsage {
+  name: string;
+  percentage: number;
+  tokens: number;
+  color: string;
+}
+
+interface RecentActivity {
+  type: string;
+  description: string;
+  time: string;
+  tokens: number;
+}
+
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d'>('30d');
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stats>({
+    tokensUsed: 0,
+    tokensLimit: 10000,
+    messagesCount: 0,
+    filesGenerated: 0,
+    projectsCount: 0,
+    hoursActive: 0,
+    avgResponseTime: 0,
+    tokensGrowth: 0,
+    messagesGrowth: 0,
+  });
+  const [usageData, setUsageData] = useState<UsageData[]>([]);
+  const [workspaceUsage, setWorkspaceUsage] = useState<WorkspaceUsage[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
 
-  const stats = {
-    tokensUsed: 45230,
-    tokensLimit: 100000,
-    messagesCount: 847,
-    filesGenerated: 234,
-    projectsCount: 12,
-    hoursActive: 56,
-    avgResponseTime: 1.2,
-    tokensGrowth: 23.5,
-    messagesGrowth: 15.2,
+  useEffect(() => {
+    fetchAnalytics();
+  }, [dateRange]);
+
+  const fetchAnalytics = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/dashboard/analytics?range=${dateRange}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data.stats || stats);
+        setUsageData(data.usageData || []);
+        setWorkspaceUsage(data.workspaceUsage || []);
+        setRecentActivity(data.recentActivity || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch analytics:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const usageData: UsageData[] = Array.from({ length: 30 }, (_, i) => ({
-    date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    tokens: Math.floor(Math.random() * 5000) + 1000,
-    messages: Math.floor(Math.random() * 50) + 10,
-    files: Math.floor(Math.random() * 20) + 5,
-  }));
-
-  const workspaceUsage = [
-    { name: 'Software Dev', percentage: 45, tokens: 20353, color: 'bg-blue-500' },
-    { name: 'Cybersecurity', percentage: 25, tokens: 11307, color: 'bg-red-500' },
-    { name: 'Content Marketing', percentage: 15, tokens: 6784, color: 'bg-pink-500' },
-    { name: 'Data Analysis', percentage: 10, tokens: 4523, color: 'bg-green-500' },
-    { name: 'Others', percentage: 5, tokens: 2261, color: 'bg-gray-500' },
-  ];
-
-  const recentActivity = [
-    { type: 'chat', description: 'Chat session in Software Dev', time: '2 hours ago', tokens: 1240 },
-    { type: 'file', description: 'Generated API documentation', time: '5 hours ago', tokens: 890 },
-    { type: 'chat', description: 'Code review assistance', time: '1 day ago', tokens: 2100 },
-    { type: 'file', description: 'Created security report', time: '2 days ago', tokens: 3500 },
-    { type: 'chat', description: 'Debugging session', time: '3 days ago', tokens: 1800 },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">

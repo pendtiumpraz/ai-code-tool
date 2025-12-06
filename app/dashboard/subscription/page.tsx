@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   CreditCard, Check, Zap, Crown, Sparkles, 
   Calendar, Clock, AlertCircle, ArrowRight,
@@ -10,100 +10,112 @@ import {
 interface Plan {
   id: string;
   name: string;
-  price: number;
-  interval: 'monthly' | 'yearly';
-  description: string;
+  displayName?: string;
+  priceMonthly: number;
+  priceYearly: number;
+  description?: string;
   features: string[];
   tokensPerMonth: number;
-  popular?: boolean;
+  highlighted?: boolean;
   current?: boolean;
+}
+
+interface CurrentPlan {
+  name: string;
+  displayName: string;
+  tokensUsed: number;
+  tokensLimit: number;
+  currentPeriodEnd?: string;
+  amount: number;
+  daysRemaining: number | null;
+  status: string;
+}
+
+interface Invoice {
+  id: string;
+  date: string;
+  amount: number;
+  status: string;
 }
 
 export default function SubscriptionPage() {
   const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('monthly');
+  const [loading, setLoading] = useState(true);
+  const [currentPlan, setCurrentPlan] = useState<CurrentPlan>({
+    name: 'Free',
+    displayName: 'Free Plan',
+    tokensUsed: 0,
+    tokensLimit: 10000,
+    amount: 0,
+    daysRemaining: null,
+    status: 'ACTIVE',
+  });
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
 
-  const currentPlan = {
-    name: 'Pro',
-    tokensUsed: 45230,
-    tokensLimit: 100000,
-    nextBillingDate: '2024-03-15',
-    amount: 29,
-    daysRemaining: 23,
+  useEffect(() => {
+    fetchSubscription();
+  }, []);
+
+  const fetchSubscription = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/dashboard/subscription');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.currentPlan) setCurrentPlan(data.currentPlan);
+        if (data.plans) setPlans(data.plans);
+        if (data.invoices) setInvoices(data.invoices);
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const plans: Plan[] = [
-    {
-      id: 'free',
-      name: 'Free',
-      price: 0,
-      interval: 'monthly',
-      description: 'Perfect for trying out',
-      tokensPerMonth: 10000,
-      features: [
-        '10,000 tokens/month',
-        'Basic AI models',
-        '3 projects',
-        'Community support',
-      ],
-    },
-    {
-      id: 'starter',
-      name: 'Starter',
-      price: billingInterval === 'monthly' ? 9 : 7,
-      interval: billingInterval,
-      description: 'For individual developers',
-      tokensPerMonth: 50000,
-      features: [
-        '50,000 tokens/month',
-        'Advanced AI models',
-        '10 projects',
-        'Email support',
-        'Code execution',
-      ],
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: billingInterval === 'monthly' ? 29 : 24,
-      interval: billingInterval,
-      description: 'For power users',
-      tokensPerMonth: 100000,
-      popular: true,
-      current: true,
-      features: [
-        '100,000 tokens/month',
-        'All AI models',
-        'Unlimited projects',
-        'Priority support',
-        'Code execution',
-        'API access',
-        'Custom templates',
-      ],
-    },
-    {
-      id: 'business',
-      name: 'Business',
-      price: billingInterval === 'monthly' ? 99 : 79,
-      interval: billingInterval,
-      description: 'For teams and businesses',
-      tokensPerMonth: 500000,
-      features: [
-        '500,000 tokens/month',
-        'All Pro features',
-        'Team collaboration',
-        'Admin dashboard',
-        'SSO authentication',
-        'Dedicated support',
-        'Custom integrations',
-      ],
-    },
-  ];
+  const handleUpgrade = async (planId: string) => {
+    try {
+      const res = await fetch('/api/dashboard/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId }),
+      });
+      if (res.ok) {
+        fetchSubscription();
+      }
+    } catch (error) {
+      console.error('Failed to upgrade:', error);
+    }
+  };
 
-  const invoices = [
-    { id: 'INV-001', date: '2024-02-15', amount: 29, status: 'paid' },
-    { id: 'INV-002', date: '2024-01-15', amount: 29, status: 'paid' },
-    { id: 'INV-003', date: '2023-12-15', amount: 29, status: 'paid' },
-  ];
+  const handleCancel = async () => {
+    if (!confirm('Are you sure you want to cancel your subscription?')) return;
+    try {
+      const res = await fetch('/api/dashboard/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel' }),
+      });
+      if (res.ok) {
+        fetchSubscription();
+      }
+    } catch (error) {
+      console.error('Failed to cancel:', error);
+    }
+  };
+
+  const getPrice = (plan: Plan) => {
+    return billingInterval === 'monthly' ? plan.priceMonthly : plan.priceYearly;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -125,14 +137,18 @@ export default function SubscriptionPage() {
             <p className="text-gray-400">${currentPlan.amount}/month</p>
           </div>
           <div className="text-right">
-            <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
-              <Calendar className="w-4 h-4" />
-              Next billing: {currentPlan.nextBillingDate}
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 font-medium">{currentPlan.daysRemaining} days remaining</span>
-            </div>
+            {currentPlan.currentPeriodEnd && (
+              <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                <Calendar className="w-4 h-4" />
+                Next billing: {currentPlan.currentPeriodEnd.split('T')[0]}
+              </div>
+            )}
+            {currentPlan.daysRemaining !== null && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 font-medium">{currentPlan.daysRemaining} days remaining</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -180,12 +196,12 @@ export default function SubscriptionPage() {
           <div
             key={plan.id}
             className={`relative bg-gray-800/50 border rounded-2xl p-6 ${
-              plan.popular 
+              plan.highlighted 
                 ? 'border-purple-500 ring-2 ring-purple-500/20' 
                 : 'border-gray-700'
             }`}
           >
-            {plan.popular && (
+            {plan.highlighted && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-purple-500 rounded-full text-xs font-medium">
                 Most Popular
               </div>
@@ -196,13 +212,13 @@ export default function SubscriptionPage() {
               </div>
             )}
 
-            <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
-            <p className="text-sm text-gray-500 mb-4">{plan.description}</p>
+            <h3 className="text-xl font-bold mb-1">{plan.displayName || plan.name}</h3>
+            <p className="text-sm text-gray-500 mb-4">{plan.description || `${plan.tokensPerMonth?.toLocaleString()} tokens/month`}</p>
 
             <div className="mb-4">
-              <span className="text-3xl font-bold">${plan.price}</span>
-              <span className="text-gray-500">/{plan.interval === 'yearly' ? 'mo' : 'month'}</span>
-              {plan.interval === 'yearly' && (
+              <span className="text-3xl font-bold">${getPrice(plan)}</span>
+              <span className="text-gray-500">/{billingInterval === 'yearly' ? 'mo' : 'month'}</span>
+              {billingInterval === 'yearly' && (
                 <p className="text-xs text-gray-500">billed annually</p>
               )}
             </div>
@@ -222,16 +238,17 @@ export default function SubscriptionPage() {
             </ul>
 
             <button
+              onClick={() => !plan.current && handleUpgrade(plan.id)}
               className={`w-full py-2 rounded-lg font-medium transition-colors ${
                 plan.current
                   ? 'bg-gray-700 text-gray-400 cursor-default'
-                  : plan.popular
+                  : plan.highlighted
                     ? 'bg-purple-500 hover:bg-purple-600 text-white'
                     : 'bg-gray-700 hover:bg-gray-600 text-white'
               }`}
               disabled={plan.current}
             >
-              {plan.current ? 'Current Plan' : plan.price === 0 ? 'Downgrade' : 'Upgrade'}
+              {plan.current ? 'Current Plan' : getPrice(plan) === 0 ? 'Downgrade' : 'Upgrade'}
             </button>
           </div>
         ))}
@@ -302,7 +319,10 @@ export default function SubscriptionPage() {
             <p className="text-sm text-gray-400 mt-1">
               You can cancel your subscription at any time. Your access will continue until the end of your billing period.
             </p>
-            <button className="mt-3 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors">
+            <button 
+              onClick={handleCancel}
+              className="mt-3 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm transition-colors"
+            >
               Cancel Subscription
             </button>
           </div>
