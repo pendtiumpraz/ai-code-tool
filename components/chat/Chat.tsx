@@ -15,8 +15,24 @@ type ChatSize = 'normal' | 'expanded' | 'maximized';
 export function Chat() {
   const [chatSize, setChatSize] = useState<ChatSize>('normal');
   const [showAISettings, setShowAISettings] = useState(false);
+  const [localInput, setLocalInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Sync with store's inputValue (for prompt templating from menu)
+  useEffect(() => {
+    const unsubscribe = useChatStore.subscribe(
+      (state) => {
+        if (state.inputValue && state.inputValue !== localInput) {
+          console.log('Syncing from store:', state.inputValue);
+          setLocalInput(state.inputValue);
+          // Clear the store value after syncing
+          state.setInputValue('');
+        }
+      }
+    );
+    return () => unsubscribe();
+  }, [localInput]);
   
   // Cycle through sizes: normal -> expanded -> maximized -> normal
   const cycleSize = () => {
@@ -43,10 +59,8 @@ export function Chat() {
   const aiStatus = useChatStore((state) => state.aiStatus);
   const currentThinking = useChatStore((state) => state.currentThinking);
   const currentToolCall = useChatStore((state) => state.currentToolCall);
-  const inputValue = useChatStore((state) => state.inputValue);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const stopGeneration = useChatStore((state) => state.stopGeneration);
-  const setInputValue = useChatStore((state) => state.setInputValue);
   
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -56,20 +70,19 @@ export function Chat() {
     scrollToBottom();
   }, [messages, currentThinking]);
   
-  // Focus input when prompt is inserted from menu
+  // Focus input when prompt is inserted
   useEffect(() => {
-    console.log('Chat inputValue changed:', inputValue);
-    if (inputValue && inputRef.current) {
+    if (localInput && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [inputValue]);
+  }, [localInput]);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isStreaming) return;
+    if (!localInput.trim() || isStreaming) return;
     
-    const userMessage = inputValue.trim();
-    setInputValue('');
+    const userMessage = localInput.trim();
+    setLocalInput('');
     
     await sendMessage(userMessage);
   };
@@ -195,8 +208,8 @@ export function Chat() {
           <div className="relative">
             <textarea
               ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              value={localInput}
+              onChange={(e) => setLocalInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask AI to help you..."
               className="w-full px-4 py-3 pr-24 bg-gray-800 border border-gray-700 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -225,7 +238,7 @@ export function Chat() {
               ) : (
                 <button
                   type="submit"
-                  disabled={!inputValue.trim()}
+                  disabled={!localInput.trim()}
                   className="p-2 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                   title="Send message"
                 >
