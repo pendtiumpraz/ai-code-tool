@@ -15,6 +15,7 @@ type ChatSize = 'normal' | 'expanded' | 'maximized';
 export function Chat() {
   const [input, setInput] = useState('');
   const [chatSize, setChatSize] = useState<ChatSize>('normal');
+  const [showAISettings, setShowAISettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
@@ -104,7 +105,11 @@ export function Chat() {
         </div>
         
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+          <button 
+            onClick={() => setShowAISettings(true)}
+            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            title="AI Settings"
+          >
             <Settings className="w-4 h-4 text-gray-400" />
           </button>
           <button 
@@ -231,7 +236,147 @@ export function Chat() {
           <QuickActionButton icon={Zap} label="Quick response" />
         </div>
       </div>
+      
+      {/* AI Settings Modal */}
+      <AnimatePresence>
+        {showAISettings && (
+          <AISettingsModal onClose={() => setShowAISettings(false)} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+// ============================================
+// AI SETTINGS MODAL
+// ============================================
+
+function AISettingsModal({ onClose }: { onClose: () => void }) {
+  const [model, setModel] = useState('gemini-2.0-flash');
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(8192);
+  const [enableTools, setEnableTools] = useState(true);
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e: React.MouseEvent) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md overflow-hidden"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            AI Settings
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4 text-gray-400" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="p-4 space-y-4">
+          {/* Model Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Model</label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash (Recommended)</option>
+              <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite (Faster)</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro (More capable)</option>
+            </select>
+          </div>
+          
+          {/* Temperature */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Temperature: {temperature}
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              className="w-full accent-purple-500"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Precise</span>
+              <span>Creative</span>
+            </div>
+          </div>
+          
+          {/* Max Tokens */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Max Output Tokens: {maxTokens}
+            </label>
+            <input
+              type="range"
+              min="1024"
+              max="16384"
+              step="1024"
+              value={maxTokens}
+              onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+              className="w-full accent-purple-500"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>1K</span>
+              <span>16K</span>
+            </div>
+          </div>
+          
+          {/* Enable Tools */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="block text-sm font-medium">Enable Tools</label>
+              <p className="text-xs text-gray-500">Allow AI to use security tools</p>
+            </div>
+            <button
+              onClick={() => setEnableTools(!enableTools)}
+              className={`w-12 h-6 rounded-full transition-colors ${
+                enableTools ? 'bg-purple-500' : 'bg-gray-700'
+              }`}
+            >
+              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                enableTools ? 'translate-x-6' : 'translate-x-0.5'
+              }`} />
+            </button>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div className="flex justify-end gap-2 p-4 border-t border-gray-800">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg text-sm font-medium transition-colors"
+          >
+            Save Settings
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 
